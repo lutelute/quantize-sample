@@ -1,0 +1,2336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>量子化ビジュアライザー</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e14;--surface:#12171f;--surface2:#1a2030;--surface3:#222a38;
+  --border:#2a3040;--border2:#3a4560;
+  --text:#e8ecf2;--text2:#b8c0d0;--text-muted:#7888a0;--text-dim:#556070;
+  --accent:#4da6ff;--accent2:#2b7de9;--green:#44cc66;--red:#ff5555;
+  --orange:#ffaa33;--purple:#b388ff;--cyan:#44ddcc;--pink:#ff66aa;
+  --note-bg:#0e1828;--note-border:#1a3060;
+  --radius:12px;--radius-sm:8px;
+  --shadow:0 4px 24px rgba(0,0,0,.4);
+  --transition:all .25s cubic-bezier(.4,0,.2,1);
+}
+html{font-size:15px;scroll-behavior:smooth}
+body{font-family:'Helvetica Neue',Arial,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;
+  background:var(--bg);color:var(--text2);line-height:1.75;min-height:100vh}
+h1,h2,h3,h4{color:var(--text);font-weight:700;line-height:1.35}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit;
+  background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:.5rem 1rem;outline:none;transition:var(--transition)}
+button{cursor:pointer;font-weight:600}
+button:hover{border-color:var(--accent);background:var(--surface3);transform:translateY(-1px)}
+button:active{transform:translateY(0)}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(77,166,255,.2)}
+input[type=range]{-webkit-appearance:none;background:linear-gradient(90deg,var(--accent2),var(--accent));
+  height:6px;border-radius:3px;border:none;padding:0;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+  background:var(--accent);cursor:pointer;box-shadow:0 0 8px rgba(77,166,255,.5);transition:var(--transition)}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2);box-shadow:0 0 14px rgba(77,166,255,.7)}
+canvas{display:block;max-width:100%;border-radius:var(--radius-sm)}
+table{border-collapse:collapse;width:100%}
+th,td{padding:.65rem .85rem;border:1px solid var(--border);text-align:left;vertical-align:top}
+th{background:var(--surface2);font-weight:700;position:sticky;top:0;z-index:2}
+code,.mono{font-family:'SF Mono',Consolas,'Courier New',monospace;font-size:.88em}
+code{background:var(--surface3);padding:.1em .4em;border-radius:4px;color:var(--cyan)}
+
+/* Tooltip */
+.tip{position:relative;border-bottom:1px dashed var(--accent);cursor:help;color:var(--accent)}
+.tip:hover::after{content:attr(data-tip);position:absolute;bottom:120%;left:50%;transform:translateX(-50%);
+  background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:.5rem .8rem;
+  border-radius:var(--radius-sm);font-size:.8rem;white-space:nowrap;z-index:100;
+  box-shadow:var(--shadow);pointer-events:none;max-width:320px;white-space:normal;line-height:1.5}
+
+/* Notes */
+.note{background:var(--note-bg);border:1px solid var(--note-border);border-left:4px solid var(--accent);
+  border-radius:var(--radius-sm);padding:1.1rem 1.3rem;margin:.8rem 0;color:#90a8c8;font-size:.9rem;line-height:1.85}
+.note summary{cursor:pointer;font-weight:700;color:var(--accent);font-size:.95rem;list-style:none;
+  display:flex;align-items:center;gap:.5rem;user-select:none}
+.note summary::before{content:'📘';font-size:1rem}
+.note summary::after{content:'▾';font-size:1.1rem;margin-left:auto;transition:transform .2s;color:var(--text-muted)}
+.note[open] summary::after{transform:rotate(180deg)}
+.note p{margin:.6rem 0 0}
+.note .fm{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:.7rem 1.2rem;margin:.7rem 0;font-family:'SF Mono',Consolas,monospace;font-size:.92rem;
+  color:var(--cyan);text-align:center;letter-spacing:.03em;overflow-x:auto}
+.note .eg{background:#0a1a12;border:1px solid #1a3a2a;border-radius:var(--radius-sm);
+  padding:.6rem 1rem;margin:.6rem 0;color:#80c8a0;font-size:.85rem;line-height:1.7}
+.note .eg::before{content:'💡 ';font-size:.9rem}
+.note .warn{background:#1a1508;border:1px solid #3a3010;border-radius:var(--radius-sm);
+  padding:.6rem 1rem;margin:.6rem 0;color:#c8a848;font-size:.85rem}
+.note .warn::before{content:'⚠ '}
+.note ul{margin:.5rem 0 0 1.2rem;color:#90a8c8}
+.note li{margin:.25rem 0}
+.note strong{color:var(--text)}
+.note .kw{color:var(--orange);font-weight:700}
+
+/* Layout */
+.header{background:linear-gradient(135deg,#0a1020 0%,#121830 50%,#0a1628 100%);
+  border-bottom:1px solid var(--border);padding:1.8rem 2.5rem 1rem;position:relative;overflow:hidden}
+.header::before{content:'';position:absolute;top:-40%;right:-10%;width:400px;height:400px;
+  background:radial-gradient(circle,rgba(77,166,255,.06) 0%,transparent 70%);pointer-events:none}
+.header h1{font-size:1.7rem;margin-bottom:.15rem;background:linear-gradient(90deg,var(--text),var(--accent));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;display:inline-block}
+.header .sub{color:var(--text-muted);font-size:.92rem;margin-bottom:1rem}
+.tnav{display:flex;gap:0;border-bottom:none}
+.tnav button{background:transparent;border:none;border-bottom:3px solid transparent;border-radius:0;
+  padding:.65rem 1.6rem;color:var(--text-muted);font-size:.95rem;white-space:nowrap;letter-spacing:.02em}
+.tnav button.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tnav button:hover{color:var(--text);background:transparent;transform:none}
+.tab{display:none;padding:2rem 2.5rem;max-width:1440px;margin:0 auto;animation:fadeIn .3s ease}
+.tab.on{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.sec{margin-bottom:2.8rem}
+.sec>h2{font-size:1.15rem;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:.5rem;color:var(--text)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+.pnl{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1.5rem;transition:var(--transition)}
+.pnl:hover{box-shadow:0 6px 28px rgba(0,0,0,.35)}
+.pnl h3{margin-bottom:.7rem;font-size:1.05rem}
+.fw{grid-column:1/-1}
+.stabs{display:flex;gap:.4rem;margin-bottom:1.2rem}
+.stabs button{font-size:.88rem;padding:.4rem 1.1rem;border-radius:20px;background:var(--surface2);border:1px solid var(--border)}
+.stabs button.on{background:var(--accent2);color:#fff;border-color:var(--accent2)}
+.ctrl-row{display:flex;gap:1rem;flex-wrap:wrap;align-items:end;margin-bottom:1.2rem}
+.ctrl-row label{font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:.2rem;font-weight:600}
+.ctrl-row .val{color:var(--accent);font-weight:700;font-size:.95rem;margin-left:.3rem}
+.btn-go{background:linear-gradient(135deg,var(--accent2),var(--accent));color:#fff;border:none;
+  padding:.5rem 1.5rem;border-radius:var(--radius-sm);font-weight:700;box-shadow:0 2px 12px rgba(77,166,255,.3)}
+.btn-go:hover{box-shadow:0 4px 20px rgba(77,166,255,.5);transform:translateY(-2px)}
+
+/* Bit */
+.bit-row{display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem}
+.bit-row .bl{min-width:55px;font-weight:800;font-size:.95rem;color:var(--text)}
+.bits{display:flex;gap:2px}
+.bx{width:18px;height:28px;border-radius:3px;transition:var(--transition)}
+.bx:hover{transform:scaleY(1.2);filter:brightness(1.3)}
+.bx.s{background:var(--red)}.bx.e{background:var(--accent)}.bx.m{background:var(--green)}
+.bit-meta{font-size:.78rem;color:var(--text-muted);margin-left:.5rem}
+.bit-leg{display:flex;gap:1.2rem;margin-top:1rem;font-size:.82rem;color:var(--text-muted)}
+.bit-leg span{display:flex;align-items:center;gap:.3rem}
+.bit-leg .sw{width:14px;height:14px;border-radius:3px}
+
+/* Cards */
+.cg{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
+.mc{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1.3rem;text-align:center;transition:var(--transition);position:relative;overflow:hidden}
+.mc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.mc.t0::before{background:var(--text-muted)}.mc.t1::before{background:var(--green)}
+.mc.t2::before{background:var(--orange)}.mc.t3::before{background:var(--purple)}
+.mc:hover{transform:translateY(-4px);box-shadow:0 10px 32px rgba(0,0,0,.5)}
+.mc .mt{font-size:.85rem;color:var(--text-muted);font-weight:600;margin-bottom:.3rem}
+.mc .mv{font-size:2rem;font-weight:800;margin-bottom:.4rem}
+.mc.t0 .mv{color:var(--text-muted)}.mc.t1 .mv{color:var(--green)}
+.mc.t2 .mv{color:var(--orange)}.mc.t3 .mv{color:var(--purple)}
+.mc .bar{height:6px;border-radius:3px;background:var(--surface);margin:.5rem 0;overflow:hidden}
+.mc .bar div{height:100%;border-radius:3px;transition:width .6s ease}
+.mc .md{font-size:.78rem;color:var(--text-muted);line-height:1.6;text-align:left}
+
+/* Steps */
+.slist{list-style:none;counter-reset:st}
+.slist li{counter-increment:st;padding:.75rem 1.1rem;margin-bottom:.5rem;background:var(--surface2);
+  border-radius:var(--radius-sm);border-left:3px solid var(--accent);
+  font-family:'SF Mono',Consolas,monospace;font-size:.85rem;line-height:1.65;transition:var(--transition)}
+.slist li:hover{background:var(--surface3);border-left-width:5px}
+.slist li::before{content:'Step ' counter(st);color:var(--accent);font-weight:800;margin-right:.6rem;font-size:.8rem}
+.slist li .d{color:var(--text-muted);font-family:'Helvetica Neue',Arial,sans-serif;font-size:.82rem;display:block;margin-top:.25rem;padding-left:1rem;border-left:2px solid var(--border)}
+.slist .ok{border-left-color:var(--green);background:#0a1a10}
+.slist .ok:hover{background:#0e2418}
+.slist .ng{border-left-color:var(--orange);background:#1a1508}
+
+/* Compare */
+.ctbl{overflow-x:auto;font-size:.85rem;border-radius:var(--radius);border:1px solid var(--border)}
+.ctbl table{margin:0}
+.ctbl .cc{max-height:90px;overflow:hidden;transition:max-height .3s;cursor:pointer;position:relative}
+.ctbl .cc.exp{max-height:2000px}
+.ctbl .cc::after{content:'';position:absolute;bottom:0;left:0;right:0;height:28px;
+  background:linear-gradient(transparent,var(--surface2));pointer-events:none}
+.ctbl .cc.exp::after{display:none}
+.ctbl .tb{color:var(--accent);font-size:.75rem;cursor:pointer;display:inline-block;margin-top:.3rem;font-weight:600}
+.sr{display:inline-flex;gap:1px;cursor:pointer;margin-top:.3rem}
+.sr .st{color:var(--border2);font-size:1rem;transition:color .15s;padding:0 1px}
+.sr .st.f{color:var(--orange)}
+.sr .st:hover{color:var(--orange)}
+
+/* Method Cards */
+.mcd{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1.3rem;margin-bottom:1rem;transition:var(--transition)}
+.mcd:hover{box-shadow:0 6px 24px rgba(0,0,0,.35);border-color:var(--border2)}
+.mcd h4{color:var(--accent);margin-bottom:.5rem;font-size:1.05rem}
+.mcd .md{font-size:.9rem;margin-bottom:.8rem;color:var(--text2);line-height:1.75}
+.mcd .ms{display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:.8rem;padding:.7rem 1.1rem;
+  background:var(--surface);border-radius:var(--radius-sm);font-size:.84rem}
+.mcd .ms strong{color:var(--text)}
+.tg{display:inline-block;padding:.2rem .6rem;border-radius:12px;font-size:.73rem;margin:.15rem .2rem;font-weight:600}
+.tg.pro{background:#0a2018;color:var(--green);border:1px solid #1a4030}
+.tg.con{background:#200a10;color:var(--red);border:1px solid #401a20}
+.tg.fw{background:#10102a;color:var(--purple);border:1px solid #2a2a50}
+
+/* User input */
+.uis textarea{width:100%;min-height:55px;resize:vertical;margin-bottom:.5rem}
+.btn-p{background:linear-gradient(135deg,var(--accent2),var(--accent));color:#fff;border:none;font-weight:700;
+  box-shadow:0 2px 10px rgba(77,166,255,.25)}
+.btn-p:hover{box-shadow:0 4px 18px rgba(77,166,255,.45)}
+.btn-d{background:transparent;color:var(--red);border:1px solid var(--red);font-size:.82rem;padding:.35rem .7rem}
+.btn-d:hover{background:#200a10}
+
+/* Heatmap hover */
+.hm-wrap{position:relative;display:inline-block}
+.hm-tip{position:absolute;pointer-events:none;background:var(--surface3);border:1px solid var(--border2);
+  color:var(--text);padding:.3rem .6rem;border-radius:6px;font-size:.78rem;white-space:nowrap;
+  box-shadow:var(--shadow);opacity:0;transition:opacity .15s;z-index:10}
+.hm-wrap:hover .hm-tip{opacity:1}
+
+/* Summary bar */
+.sbar{display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:2rem;padding:1.2rem 1.5rem;
+  background:linear-gradient(135deg,var(--surface) 0%,var(--surface2) 100%);
+  border:1px solid var(--border);border-radius:var(--radius)}
+.sbar .si{flex:1;min-width:180px}
+.sbar .si .sl{font-size:.78rem;color:var(--text-muted);font-weight:600;margin-bottom:.2rem}
+.sbar .si .sv{font-size:1.4rem;font-weight:800;color:var(--accent)}
+.sbar .si .sd{font-size:.78rem;color:var(--text-dim)}
+
+/* Pipeline animation */
+.pipe-wrap{display:flex;align-items:center;gap:0;flex-wrap:wrap;justify-content:center;margin:1rem 0}
+.pipe-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:.8rem 1.2rem;text-align:center;min-width:100px;transition:var(--transition)}
+.pipe-box .pipe-label{font-size:.72rem;color:var(--text-muted);font-weight:600;margin-bottom:.2rem}
+.pipe-box .pipe-val{font-size:1.1rem;font-weight:800;font-family:'SF Mono',Consolas,monospace}
+.pipe-arrow{font-size:1.2rem;color:var(--accent);padding:0 .3rem;flex-shrink:0}
+.pipe-box.active{border-color:var(--accent);box-shadow:0 0 12px rgba(77,166,255,.25)}
+.err-bar{height:18px;border-radius:4px;margin-top:.5rem;overflow:hidden;background:var(--surface2);position:relative}
+.err-bar-inner{height:100%;border-radius:4px;transition:width .3s,background .3s}
+.err-bar-label{position:absolute;right:6px;top:1px;font-size:.7rem;color:var(--text);font-weight:700}
+
+/* Outlier pulse */
+.outlier-dot{transition:all .3s}
+@keyframes outlierPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.5)}}
+.outlier-pulse{animation:outlierPulse .8s ease infinite}
+
+/* Guide card */
+.guide-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}
+.guide-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:1rem;text-align:center;transition:var(--transition)}
+.guide-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.guide-card .gc-bits{font-size:1.6rem;font-weight:800;margin-bottom:.3rem}
+.guide-card .gc-label{font-size:.82rem;font-weight:700;margin-bottom:.3rem}
+.guide-card .gc-desc{font-size:.75rem;color:var(--text-muted);line-height:1.6}
+
+/* Stats row */
+.stats-row{display:flex;gap:1.5rem;flex-wrap:wrap;margin-top:.8rem;font-size:.85rem}
+.stats-row .stat{background:var(--surface2);padding:.5rem 1rem;border-radius:var(--radius-sm);border:1px solid var(--border)}
+.stats-row .stat strong{color:var(--accent)}
+
+/* NN diagram lane */
+.nn-lanes{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;margin-top:1rem}
+.nn-lane{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.8rem;text-align:center}
+.nn-lane .lane-label{font-size:.82rem;font-weight:700;margin-bottom:.4rem}
+.nn-lane .lane-val{font-size:1.3rem;font-weight:800;font-family:'SF Mono',Consolas,monospace}
+
+/* Image Quantization Grid */
+.iq-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1rem}
+.iq-cell{position:relative;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.iq-cell canvas{display:block;width:100%;height:auto}
+.iq-label{position:absolute;top:0;left:0;right:0;padding:.35rem .6rem;
+  background:linear-gradient(180deg,rgba(0,0,0,.7) 0%,transparent 100%);
+  font-size:.75rem;font-weight:700;color:#fff;display:flex;justify-content:space-between;pointer-events:none}
+.iq-label .iq-levels{font-weight:400;opacity:.85}
+.iq-patterns{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem}
+.iq-patterns button{padding:.45rem 1rem;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:.82rem;cursor:pointer;transition:var(--transition)}
+.iq-patterns button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.iq-patterns button:hover:not(.on){border-color:var(--accent)}
+
+/* Mosaic Recognition Demo */
+.mo-wrap{display:flex;flex-direction:column;gap:1.2rem}
+.mo-subject-row{display:flex;gap:.5rem;flex-wrap:wrap}
+.mo-subject-row button{padding:.45rem 1rem;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:.82rem;cursor:pointer;transition:var(--transition)}
+.mo-subject-row button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.mo-subject-row button:hover:not(.on){border-color:var(--accent)}
+.mo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}
+.mo-cell{position:relative;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;transition:border-color .3s}
+.mo-cell.mo-lost{border-color:var(--orange)}
+.mo-cell canvas{display:block;width:100%;height:auto}
+.mo-info{padding:.4rem .6rem;font-size:.72rem;text-align:center;background:var(--surface);border-top:1px solid var(--border)}
+.mo-info .mo-block{font-weight:700;color:var(--accent)}
+.mo-info .mo-verdict{display:block;margin-top:.15rem;font-weight:700}
+.mo-verdict.ok{color:var(--green,#4ade80)}
+.mo-verdict.ng{color:var(--orange)}
+.mo-slider-row{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.mo-slider-row label{font-size:.85rem;font-weight:600;white-space:nowrap}
+.mo-slider-row input[type=range]{flex:1;min-width:120px}
+.mo-slider-row .val{font-weight:800;min-width:3.5em;font-family:'SF Mono',Consolas,monospace}
+
+/* Text Quantization Demo */
+.tq-grid{display:flex;flex-direction:column;gap:.8rem;margin-top:1rem}
+.tq-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;transition:border-color .3s}
+.tq-card.tq-lost{border-color:var(--orange)}
+.tq-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem}
+.tq-head .tq-title{font-size:.82rem;font-weight:700;color:var(--accent)}
+.tq-head .tq-meta{font-size:.72rem;color:var(--text-muted)}
+.tq-text{font-size:.95rem;line-height:1.8;padding:.6rem .8rem;background:var(--surface);border-radius:var(--radius-sm);
+  font-family:'Noto Sans JP','Hiragino Kaku Gothic ProN',sans-serif;white-space:pre-wrap;word-break:break-all}
+.tq-verdict{margin-top:.4rem;font-size:.75rem;font-weight:700;text-align:right}
+.tq-verdict.ok{color:var(--green,#4ade80)}
+.tq-verdict.ng{color:var(--orange)}
+.tq-sample-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem}
+.tq-sample-row button{padding:.45rem 1rem;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:.82rem;cursor:pointer;transition:var(--transition)}
+.tq-sample-row button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tq-sample-row button:hover:not(.on){border-color:var(--accent)}
+/* KaTeX overrides for dark theme */
+.katex{color:var(--text)}
+.fm .katex{font-size:.95em}
+
+/* Responsive */
+@media(max-width:1000px){.g2{grid-template-columns:1fr}.cg{grid-template-columns:1fr 1fr}
+  .guide-cards{grid-template-columns:1fr 1fr}.nn-lanes{grid-template-columns:1fr 1fr}
+  .mo-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:768px){.iq-grid{grid-template-columns:repeat(2,1fr)}.mo-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.tnav{overflow-x:auto;gap:0}.tab{padding:1rem}.cg{grid-template-columns:1fr}
+  .header{padding:1.2rem 1rem .8rem}.sbar{flex-direction:column;gap:.8rem}
+  .guide-cards{grid-template-columns:1fr}.nn-lanes{grid-template-columns:1fr}
+  .pipe-wrap{flex-direction:column}.pipe-arrow{transform:rotate(90deg)}}
+@media(max-width:480px){.iq-grid{grid-template-columns:1fr}.mo-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <h1>量子化ビジュアライザー</h1>
+  <div class="sub">AIモデルの量子化 (FP32 → FP16 → INT8 → INT4) をインタラクティブに学ぶ</div>
+  <nav class="tnav" id="tnav">
+    <button data-t="why">なぜ量子化？</button>
+    <button class="on" data-t="overview">概要と可視化</button>
+    <button data-t="playground">計算プレイグラウンド</button>
+    <button data-t="compare">品質比較</button>
+    <button data-t="deep">深掘り分析</button>
+  </nav>
+</header>
+
+<!-- ==================== TAB 0: なぜ量子化？ ==================== -->
+<div class="tab" id="t-why">
+
+<!-- Section A: 量子化パイプライン体験 -->
+<div class="sec">
+  <h2>🔄 量子化パイプライン体験</h2>
+  <div class="pnl">
+    <h3>実数 → 整数 → 近似値：3ステップを体感する</h3>
+    <div class="ctrl-row">
+      <div><label>入力値</label><input type="range" id="whyVal" min="-2" max="2" value="0.73" step="0.01"><span class="val" id="whyValV">0.73</span></div>
+      <div><label>ビット幅</label>
+        <select id="whyBits">
+          <option value="2">2bit</option><option value="4">4bit</option>
+          <option value="8" selected>8bit</option><option value="16">16bit</option>
+        </select>
+      </div>
+    </div>
+    <canvas id="pipeDiagram" height="120"></canvas>
+    <div class="pipe-wrap" id="whyPipe"></div>
+    <div style="margin-top:.5rem">
+      <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:.2rem">量子化誤差: <span id="whyErrVal" style="color:var(--orange);font-weight:700">—</span></div>
+      <div class="err-bar"><div class="err-bar-inner" id="whyErrBar"></div><span class="err-bar-label" id="whyErrLabel"></span></div>
+    </div>
+    <details class="note">
+      <summary>解説: パイプラインの各ステップ（数式付き）</summary>
+      <p>対称量子化の3ステップは以下の数式で記述されます。ビット幅 $b$ に対し、表現可能な最大整数 $q_{\max} = 2^{b-1} - 1$ とします。</p>
+      <p><strong>Step 1 — Scale計算と量子化 (round)</strong>:</p>
+      <div class="fm">$$s = \frac{\alpha}{q_{\max}}, \quad q = \mathrm{round}\!\left(\frac{x}{s}\right)$$</div>
+      <p>ここで $\alpha = \max|x_i|$（テンソル内の最大絶対値）、$x$ は実数値の重みです。</p>
+      <p><strong>Step 2 — クランプ (clamp)</strong>:</p>
+      <div class="fm">$$q_c = \mathrm{clamp}(q,\; -q_{\max},\; q_{\max})$$</div>
+      <p>丸め結果が表現範囲を超えた場合に切り詰めます。飽和 (saturation) とも呼びます。</p>
+      <p><strong>Step 3 — 逆量子化 (dequantize)</strong>:</p>
+      <div class="fm">$$\hat{x} = q_c \cdot s$$</div>
+      <p>この $\hat{x}$ が元の値 $x$ の近似値です。量子化誤差は $\epsilon = |x - \hat{x}|$ で定義され、最大誤差は $\frac{s}{2}$ に制限されます。</p>
+      <div class="eg">ビット幅を16→4→2と下げてみてください。2bitでは $q_{\max}=1$、取りうる値が $\{-1, 0, 1\}$ の3つだけになり、誤差が劇的に増えます。</div>
+    </details>
+  </div>
+</div>
+
+<!-- Section: Image Quantization -->
+<div class="sec">
+  <h2>🖼️ 画像で見るbitの荒さ</h2>
+  <div class="pnl">
+    <h3>パターンを選んで比較</h3>
+    <div class="iq-patterns" id="iqPatterns">
+      <button class="on" data-p="gradient">2Dカラーグラデーション</button>
+      <button data-p="radial">放射状グラデーション</button>
+      <button data-p="wave">波紋（sin波合成）</button>
+    </div>
+    <div class="iq-grid" id="iqGrid"></div>
+    <details class="note" style="margin-top:.8rem">
+      <summary>解説: なぜバンディングが起こるか（均一量子化理論）</summary>
+      <p>$b$ bit/チャンネルの場合、表現可能な段階数は $L = 2^b$ です。連続値 $v \in [0, 255]$ は以下のように離散化されます:</p>
+      <div class="fm">$$\Delta = \frac{256}{L}, \quad \hat{v} = \left\lfloor \frac{v}{\Delta} \right\rfloor \cdot \Delta + \frac{\Delta}{2}$$</div>
+      <p>ステップ幅 $\Delta$ が大きくなるほど、隣接する量子化値の差が増え、グラデーション中に目に見える<strong>段差（バンディング）</strong>が発生します。</p>
+      <ul>
+        <li><strong>8bit/ch</strong>: $L=256$, $\Delta=1$ — 人間の知覚閾値（約1/256）以下で滑らか</li>
+        <li><strong>4bit/ch</strong>: $L=16$, $\Delta=16$ — Weber-Fechnerの法則により暗部でバンディングが知覚される</li>
+        <li><strong>2bit/ch</strong>: $L=4$, $\Delta=64$ — 明確なバンディング。色の総数は $4^3 = 64$ 色</li>
+        <li><strong>1bit/ch</strong>: $L=2$, $\Delta=128$ — 各チャンネルON/OFFのみ。全 $2^3 = 8$ 色</li>
+      </ul>
+      <p>均一量子化の<strong>理論的な平均二乗誤差 (MSE)</strong> は:</p>
+      <div class="fm">$$\mathrm{MSE} = \frac{\Delta^2}{12} = \frac{256^2}{12 \cdot 2^{2b}}$$</div>
+      <p>ビット幅が1bit減るたびにMSEは約4倍（6.02 dB）悪化します。</p>
+      <div class="eg">パターンを切り替えると、量子化の影響が画像の周波数特性によってどう異なるかを比較できます。高周波成分（波紋パターン）では量子化ノイズが原信号に紛れやすい一方、低周波（グラデーション）ではバンディングが顕著です。</div>
+    </details>
+  </div>
+</div>
+
+<!-- Section: Mosaic Recognition Demo -->
+<div class="sec">
+  <h2>🧩 モザイクで分かる「情報の限界」</h2>
+  <div class="pnl">
+    <h3>どこまで粗くしても何か分かる？</h3>
+    <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:.8rem">
+      認識可能な絵をモザイク化（空間解像度の量子化）して、判別不能になる境界を体験してみましょう。
+    </p>
+    <div class="mo-subject-row" id="moSubjects">
+      <button class="on" data-s="cat">🐱 ネコ</button>
+      <button data-s="fish">🐟 サカナ</button>
+      <button data-s="house">🏠 家</button>
+      <button data-s="tree">🌳 木</button>
+    </div>
+    <div class="mo-grid" id="moGrid"></div>
+    <details class="note" style="margin-top:.8rem">
+      <summary>解説: 空間量子化と値量子化</summary>
+      <p>上の「🖼️画像で見るbitの荒さ」は<strong>値の量子化</strong>（色の段階を減らす）でした。ここでは<strong>空間の量子化</strong>（ピクセル数を減らす）を行っています。</p>
+      <p>AIモデルの量子化も本質は同じです。重みの精度を落とすと、<strong>細かいニュアンス</strong>から失われ、やがて<strong>本質的な特徴</strong>まで壊れます。「どのbit幅まで下げても大丈夫か」は、この「判別可能/不能」の境界線を見極める作業と似ています。</p>
+      <div class="eg">ブロックサイズ4×4程度なら大体何か分かりますが、16×16を超えると判別困難になります。INT4量子化が「ギリギリ使える」のと同じ感覚です。</div>
+    </details>
+  </div>
+</div>
+
+<!-- Section: Text Quantization Demo -->
+<div class="sec">
+  <h2>📝 文章で見る量子化 — 言葉の「精度」を落とす</h2>
+  <div class="pnl">
+    <h3>文章を段階的に劣化させると？</h3>
+    <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:.8rem">
+      画像のモザイクと同じ原理を、文章に適用します。漢字→ひらがな→文字の間引き→記号化と精度を落としていくと、<strong>どの段階で意味が失われるか</strong>を体験できます。
+    </p>
+    <div class="tq-sample-row" id="tqSamples">
+      <button class="on" data-t="tech">技術文</button>
+      <button data-t="story">物語</button>
+      <button data-t="code">コード的</button>
+    </div>
+    <div class="tq-grid" id="tqGrid"></div>
+    <details class="note" style="margin-top:.8rem">
+      <summary>解説: 文章の量子化とAIモデルの量子化の対応</summary>
+      <p>この比喩はAIモデルの量子化と以下のように対応しています:</p>
+      <table style="font-size:.82rem;margin:.6rem 0">
+        <thead><tr><th>文章の劣化レベル</th><th>対応するAI量子化</th><th>情報の変化</th></tr></thead>
+        <tbody>
+          <tr><td>原文（全漢字）</td><td>FP32</td><td>完全な情報を保持</td></tr>
+          <tr><td>ひらがな化</td><td>FP16</td><td>表記が変わるが意味はほぼ保持</td></tr>
+          <tr><td>2文字ごとに1文字</td><td>INT8</td><td>情報量が半減するが推測可能</td></tr>
+          <tr><td>4文字ごとに1文字</td><td>INT4</td><td>断片的、文脈から辛うじて推測</td></tr>
+          <tr><td>母音のみ</td><td>INT2</td><td>ほぼ判読不能</td></tr>
+          <tr><td>文字数のみ</td><td>1bit</td><td>元の情報は完全に消失</td></tr>
+        </tbody>
+      </table>
+      <p>AI量子化でも同様に、<strong>FP16までは品質をほぼ維持</strong>し、<strong>INT4がギリギリの実用ライン</strong>、<strong>INT2以下では出力が崩壊</strong>します。</p>
+      <p>重要なのは、<strong>構造が明確な情報（コード、定型文）は量子化に強く</strong>、<strong>ニュアンスの微妙な情報（文学、感情表現）は量子化に弱い</strong>という点です。これはAIモデルでも同じ傾向が見られます。</p>
+    </details>
+  </div>
+</div>
+
+<!-- Section B: 段階的劣化デモ -->
+<div class="sec">
+  <h2>📉 段階的劣化デモ — なぜ精度が下がるか</h2>
+  <div class="pnl">
+    <h3>元信号 vs 量子化信号</h3>
+    <div class="ctrl-row">
+      <div><label>ビット幅</label><input type="range" id="degBits" min="1" max="16" value="8" step="1"><span class="val" id="degBitsV">8</span></div>
+      <div><label>信号の複雑さ</label><input type="range" id="degComp" min="1" max="5" value="2" step="1"><span class="val" id="degCompV">2</span></div>
+    </div>
+    <canvas id="degCanvas" height="280"></canvas>
+    <div class="stats-row" id="degStats"></div>
+    <details class="note">
+      <summary>解説: 階段波と信号対量子化雑音比 (SQNR)</summary>
+      <p>ビット幅 $b$ の量子化レベル数は $L = 2^b$ です。信号の振幅範囲 $[-A, A]$ に対し、量子化ステップ幅は:</p>
+      <div class="fm">$$\Delta = \frac{2A}{2^b}$$</div>
+      <p>量子化誤差 $e = x - \hat{x}$ は $[-\Delta/2, +\Delta/2]$ の一様分布に近似でき、その分散は:</p>
+      <div class="fm">$$\sigma_e^2 = \frac{\Delta^2}{12}$$</div>
+      <p><strong>信号対量子化雑音比 (SQNR)</strong> は、信号の分散 $\sigma_x^2$ に対して:</p>
+      <div class="fm">$$\mathrm{SQNR} = 10 \log_{10}\!\left(\frac{\sigma_x^2}{\sigma_e^2}\right) \approx 6.02\,b + C \;\text{[dB]}$$</div>
+      <p>つまり<strong>1bitごとに約6 dBのSQNRが得られ</strong>、1bit減るごとに雑音が約4倍になります。</p>
+      <ul>
+        <li><strong>16bit</strong>: $L = 65{,}536$, SQNR ≈ 98 dB → 元信号とほぼ区別不能</li>
+        <li><strong>8bit</strong>: $L = 256$, SQNR ≈ 50 dB → わずかな階段が見える</li>
+        <li><strong>4bit</strong>: $L = 16$, SQNR ≈ 26 dB → 明らかな階段状</li>
+        <li><strong>1bit</strong>: $L = 2$, SQNR ≈ 8 dB → +1か-1のみ</li>
+      </ul>
+      <p>信号の複雑さ（高調波数 $k$）を増やすと、高周波成分のエネルギーが増加し、量子化ノイズとの相互作用がより複雑になります。</p>
+    </details>
+  </div>
+</div>
+
+<!-- Section C: なぜ量子化が成立するのか -->
+<div class="sec">
+  <h2>🎯 なぜ量子化が成立するのか — 冗長性の可視化</h2>
+  <div class="g2">
+    <div class="pnl">
+      <h3>重み分布の集中度</h3>
+      <div style="position:relative;height:280px"><canvas id="whyDistCv"></canvas></div>
+      <details class="note">
+        <summary>解説: 重みの分布と量子化誤差の関係</summary>
+        <p>Transformerの重みは初期化に<strong>Xavier/He初期化</strong>を用い、学習後もほぼ正規分布を保ちます:</p>
+        <div class="fm">$$w \sim \mathcal{N}\!\left(0,\; \frac{2}{n_{\mathrm{in}} + n_{\mathrm{out}}}\right)$$</div>
+        <p>典型的なLLM（7Bクラス）では、<strong>95%以上の重みが $\pm 3\sigma$ 以内</strong>（$\sigma \approx 0.01$〜$0.02$）に収まります。</p>
+        <p>量子化の<strong>平均二乗誤差 (MSE)</strong> は、分布の確率密度関数 $f(x)$ と量子化関数 $Q(x)$ を用いて:</p>
+        <div class="fm">$$\mathrm{MSE} = \mathbb{E}\!\left[(x - Q(x))^2\right] = \int_{-\infty}^{\infty} (x - Q(x))^2 f(x) \, dx$$</div>
+        <p>重みが0付近に集中しているため、$|x|$ が小さい領域の量子化精度が全体のMSEを支配します。対称量子化のグリッド間隔 $s = \alpha / q_{\max}$ において、$\alpha$ が小さいほど精度が高くなるため、<strong>分布が狭いことは量子化にとって理想的</strong>です。</p>
+      </details>
+    </div>
+    <div class="pnl">
+      <h3>精度 vs 出力ロバスト性</h3>
+      <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:.6rem">簡易3層NN (2入力→4隠れ→1出力) を各ビット幅で計算し、出力を比較</p>
+      <canvas id="robustNNCv" height="200"></canvas>
+      <div id="robustResults" style="margin-top:.8rem"></div>
+      <button class="btn-go" onclick="doWhyRobust()" style="margin-top:.8rem">新しい重みで再計算</button>
+      <details class="note">
+        <summary>解説: なぜ微小誤差が問題にならないか — 数理的根拠</summary>
+        <p>量子化後の重みを $\hat{W} = W + E$ とすると（$E$ は誤差行列）、ある層の出力は:</p>
+        <div class="fm">$$\hat{y} = \hat{W}x = Wx + Ex$$</div>
+        <p>誤差項 $Ex$ の影響が小さい理由は以下の4つです:</p>
+        <ul>
+          <li><strong>重みが0付近に集中</strong>: $\|E\|_F \ll \|W\|_F$ となり、相対誤差 $\|E\|_F / \|W\|_F$ が小さい</li>
+          <li><strong>行列積で誤差が相殺（大数の法則）</strong>: $E$ の各要素は平均0に近い独立な誤差。隠れ層の次元 $d$ が大きいとき、$Ex$ の各成分は $\sim \mathcal{O}(1/\sqrt{d})$ に縮小:
+          $$\mathbb{E}[(Ex)_i^2] = \sum_j \mathbb{E}[E_{ij}^2] \cdot x_j^2 = \sigma_e^2 \|x\|^2$$</li>
+          <li><strong>ReLUが微小差を吸収</strong>: $\mathrm{ReLU}(z) = \max(0, z)$ は負の値を全て0にするため、誤差が出力の符号を変えない限り影響なし</li>
+          <li><strong>損失平面の平坦性</strong>: 学習済みモデルは損失関数 $\mathcal{L}(W)$ の平坦な極小値にいるため、ヘッセ行列 $H$ の固有値が小さく、$\mathcal{L}(W+E) \approx \mathcal{L}(W) + \frac{1}{2} E^T H E$ の第二項が微小</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- ==================== TAB 1 ==================== -->
+<div class="tab on" id="t-overview">
+
+<div class="sbar">
+  <div class="si"><div class="sl">このツールで学べること</div><div class="sv">量子化の全体像</div><div class="sd">ビット表現 → 分布の変化 → 誤差の可視化 → トレードオフ</div></div>
+  <div class="si"><div class="sl">対象読者</div><div class="sv">LLM利用者〜ML初学者</div><div class="sd">数式は展開可能。直感的な図解を優先</div></div>
+  <div class="si"><div class="sl">操作方法</div><div class="sv">スライダー & クリック</div><div class="sd">パラメータを動かすと全てリアルタイム更新</div></div>
+</div>
+
+<details class="note" open>
+  <summary>そもそも「量子化」とは？ — 30秒で理解する</summary>
+  <p>AIモデル（ChatGPTなどの<span class="kw">LLM</span>）は内部に<strong>数十億〜数千億の数値パラメータ（重み）</strong>を持ちます。通常 <strong>FP32</strong>（32ビット浮動小数点数）で保存されますが、7Bモデルなら<strong>28GB</strong>のメモリが必要です。</p>
+  <div class="eg">家の引っ越しで考えてみてください。FP32は全荷物を「超大型トラック」で運ぶようなもの。量子化は「荷物を圧縮して小型トラックに積み替える」技術です。多少シワがつく（精度低下）けれど、運搬コスト（メモリ・計算時間）が劇的に下がります。</div>
+  <div class="fm">$$\text{VRAM} = \frac{N \times b}{8} \quad \Rightarrow \quad \text{FP32: } 28\text{GB} \;\to\; \text{FP16: } 14\text{GB} \;\to\; \text{INT8: } 7\text{GB} \;\to\; \text{INT4: } 3.5\text{GB}$$</div>
+  <p>つまり<strong>量子化 = 数値の精度を落としてモデルを軽量化する技術</strong>。精度と効率の最適なバランスを探るのがこの分野の課題です。</p>
+  <p>数学的には、量子化は写像 $Q: \mathbb{R} \to \mathcal{C}$ であり、有限の<strong>コードブック</strong> $\mathcal{C} = \{c_1, c_2, \ldots, c_L\}$ （$L = 2^b$ レベル）への最近傍割当です。最適な $\mathcal{C}$ は歪み関数 $D = \mathbb{E}[(x - Q(x))^2]$ を最小化するように設計されます（Lloyd-Maxアルゴリズム）。</p>
+</details>
+
+<!-- BIT -->
+<div class="sec">
+  <h2>🔢 ビット構造の比較</h2>
+  <div class="g2">
+    <div class="pnl">
+      <h3>各データ形式の内部構造</h3>
+      <div id="bitViz"></div>
+      <div class="bit-leg">
+        <span><span class="sw" style="background:var(--red)"></span> <span class="tip" data-tip="値が正か負かを表す1ビット">符号</span></span>
+        <span><span class="sw" style="background:var(--accent)"></span> <span class="tip" data-tip="値の桁数（スケール）を表す。多いほど広い範囲を表現可能">指数</span></span>
+        <span><span class="sw" style="background:var(--green)"></span> <span class="tip" data-tip="値の細かさ（精度）を表す。多いほど隣の値との間隔が小さい">仮数/値</span></span>
+      </div>
+    </div>
+    <div class="pnl">
+      <h3>比較テーブル</h3>
+      <table style="font-size:.85rem">
+        <thead><tr><th>形式</th><th>ビット</th><th>取りうる値の数</th><th>メモリ(7B)</th><th>精度</th></tr></thead>
+        <tbody>
+          <tr><td><strong>FP32</strong></td><td>32</td><td>~42億</td><td>28.0 GB</td><td style="color:var(--green)">基準</td></tr>
+          <tr><td><strong style="color:var(--green)">FP16</strong></td><td>16</td><td>~65,536</td><td>14.0 GB</td><td style="color:var(--green)">≈ 同等</td></tr>
+          <tr><td><strong style="color:var(--orange)">INT8</strong></td><td>8</td><td>256</td><td>7.0 GB</td><td style="color:var(--orange)">微減</td></tr>
+          <tr><td><strong style="color:var(--purple)">INT4</strong></td><td>4</td><td>16</td><td>3.5 GB</td><td style="color:var(--red)">顕著に減</td></tr>
+        </tbody>
+      </table>
+      <details class="note" style="margin-top:.8rem">
+        <summary>解説: FP vs INT の根本的な違い</summary>
+        <p><strong>浮動小数点 (FP)</strong> は「指数部」でスケールを動的に調整し、非常に広いダイナミックレンジを持ちます:</p>
+        <div class="fm">$$x = (-1)^{s} \times 2^{(E - \mathrm{bias})} \times (1 + M)$$</div>
+        <p>ここで $s$ は符号ビット、$E$ は指数部の整数値、$M$ は仮数部（$0 \le M < 1$）。FP32では指数8bit、仮数23bitで、ダイナミックレンジは約 $10^{-38}$ 〜 $10^{38}$ です。</p>
+        <p>FP16 (half precision) では指数5bit・仮数10bitに縮小されますが、<strong>BFloat16</strong> (BF16) は指数8bitを維持して仮数を7bitに削り、FP32と同じレンジを保ちます:</p>
+        <div class="fm">$$\text{FP16: } 6.1 \times 10^{-5} \sim 6.6 \times 10^4, \quad \text{BF16: } 1.2 \times 10^{-38} \sim 3.4 \times 10^{38}$$</div>
+        <p><strong>整数型 (INT)</strong> は指数部がなく、固定の<span class="tip" data-tip="1量子化ステップあたりの実数幅。全ての量子化値の間隔はこのscaleの整数倍">scale $s$</span> で値を表現します:</p>
+        <div class="fm">$$\hat{x} = s \cdot q, \quad q \in \{-2^{b-1},\ldots, 2^{b-1}-1\}$$</div>
+        <p>値は等間隔 $s$ で飛び飛びになり、最大 $s/2$ の量子化誤差が生じます。</p>
+        <div class="eg">FP32は「0.001mm刻みの精密なデジタルノギス」。INT4 は「1cm刻みのメジャー」。7.3mmの物を測ると、ノギスは7.3mmと言えるが、メジャーでは「1cm」としか言えない。この差が量子化誤差です。</div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<!-- HISTOGRAM -->
+<div class="sec">
+  <h2>📊 重み分布と量子化の影響</h2>
+  <div class="pnl">
+    <h3>正規分布の重みを各精度で量子化</h3>
+    <div style="position:relative;height:320px"><canvas id="histCv"></canvas></div>
+    <div class="ctrl-row" style="margin-top:1rem">
+      <div><label>重みの個数</label><input type="range" id="hN" min="200" max="5000" value="1000" step="200"><span class="val" id="hNv">1000</span></div>
+      <div><label>標準偏差 σ</label><input type="range" id="hS" min="0.1" max="3" value="1" step="0.1"><span class="val" id="hSv">1.0</span></div>
+    </div>
+    <details class="note">
+      <summary>解説: 分布の変形と情報理論的解釈</summary>
+      <p>AIモデルの重みは<strong>正規分布</strong> $w \sim \mathcal{N}(0, \sigma^2)$ に近い形を取ります。量子化は確率密度関数を離散分布に変換する操作です。</p>
+      <ul>
+        <li><strong>FP32 (灰)</strong>: 連続分布そのもの。情報エントロピー $h(w) = \frac{1}{2}\ln(2\pi e \sigma^2)$</li>
+        <li><strong style="color:var(--green)">FP16 (緑)</strong>: FP32とほぼ重なる。仮数10bitの精度は重みの精度を上回る</li>
+        <li><strong style="color:var(--orange)">INT8 (黄)</strong>: 256段階への離散化。離散エントロピー $H \le 8$ bits で、正規分布なら $H \approx 7.5$ bits</li>
+        <li><strong style="color:var(--purple)">INT4 (紫)</strong>: 16段階のみ。$H \le 4$ bits。確率密度のピーク付近の値にスパイクが集中</li>
+      </ul>
+      <p><strong>量子化による情報損失</strong>はKLダイバージェンスで測定できます:</p>
+      <div class="fm">$$D_{\mathrm{KL}}(p \| \hat{p}) = \sum_i p(x_i) \ln \frac{p(x_i)}{\hat{p}(x_i)} \ge 0$$</div>
+      <p>ビット幅が減るほど $D_{\mathrm{KL}}$ は大きくなり、元の分布との乖離が増大します。TensorRTなどの量子化ツールは、$D_{\mathrm{KL}}$ を最小化するクリッピング閾値 $\alpha$ を探索します (エントロピー校正)。</p>
+      <div class="eg">$\sigma$ を大きくすると分布が広がり、INT4のスパイクがより極端になるのを確認してください。これはscale $s = \alpha/q_{\max}$ が大きくなり、量子化グリッドが粗くなるためです。</div>
+    </details>
+  </div>
+</div>
+
+<!-- ERROR VISUALIZATION -->
+<div class="sec">
+  <h2>🌡️ 量子化誤差を直感的に理解する</h2>
+  <div class="g2">
+    <div class="pnl">
+      <h3>元の値 vs 量子化誤差（散布図）</h3>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.6rem">各点は1つの重み。X軸=元の値、Y軸=量子化後の誤差。<strong>0から離れるほど誤差が大きい</strong>ことが一目でわかる。</p>
+      <canvas id="errScatter" height="300"></canvas>
+      <div class="ctrl-row" style="margin-top:.8rem">
+        <div><label>サンプル数</label><input type="range" id="esN" min="100" max="1000" value="300" step="100"><span class="val" id="esNv">300</span></div>
+        <button class="btn-go" onclick="doErrScatter()">再生成</button>
+      </div>
+      <div id="esStats" style="font-size:.82rem;margin-top:.5rem;line-height:1.8"></div>
+    </div>
+    <div class="pnl">
+      <h3>数直線スナップ — 値はこう「丸められる」</h3>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.6rem">上段=INT8(256段階)、下段=INT4(16段階)。矢印が<span style="color:#ffaa33">量子化誤差</span>を表す。</p>
+      <canvas id="snapCanvas" height="280"></canvas>
+      <div class="ctrl-row" style="margin-top:.8rem">
+        <div><label>表示する値の数</label><input type="range" id="snapN" min="5" max="25" value="12" step="1"><span class="val" id="snapNv">12</span></div>
+        <button class="btn-go" onclick="doSnapViz()">新しい値で再描画</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vector Quantization 2D -->
+  <div class="pnl" style="margin-top:1rem">
+    <h3>🎯 2Dベクトルで見る量子化誤差</h3>
+    <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.6rem">
+      左: 個別ベクトルの量子化誤差。右: <strong>ベクトルの合計（Σ）</strong>で誤差がどう蓄積 or 相殺するか。薄い線は各ベクトルの加算過程を示します。
+    </p>
+    <div class="ctrl-row" style="margin-bottom:.6rem">
+      <div><label>ビット幅</label>
+        <select id="vqBits"><option value="8">INT8</option><option value="4" selected>INT4</option><option value="3">INT3</option><option value="2">INT2</option></select>
+      </div>
+      <div><label>ベクトル数</label><input type="range" id="vqN" min="3" max="20" value="8" step="1"><span class="val" id="vqNv">8</span></div>
+      <button class="btn-go" onclick="doVecQuant()">再生成</button>
+    </div>
+    <canvas id="vqCanvas" height="420"></canvas>
+    <div id="vqStats" style="font-size:.82rem;margin-top:.5rem;line-height:1.8"></div>
+    <details class="note">
+      <summary>解説: ベクトル量子化と角度誤差の数理</summary>
+      <p>重みベクトル $\mathbf{w} \in \mathbb{R}^d$ を要素ごとに量子化すると $\hat{\mathbf{w}} = Q(\mathbf{w})$ が得られます。このとき2種類の誤差が発生します:</p>
+      <p><strong>1. ノルム（大きさ）の誤差:</strong></p>
+      <div class="fm">$$\epsilon_{\mathrm{norm}} = \left|\; \|\mathbf{w}\| - \|\hat{\mathbf{w}}\| \;\right|$$</div>
+      <p><strong>2. 角度誤差（方向のずれ）:</strong></p>
+      <div class="fm">$$\theta = \arccos\!\left(\frac{\mathbf{w} \cdot \hat{\mathbf{w}}}{\|\mathbf{w}\| \cdot \|\hat{\mathbf{w}}\|}\right)$$</div>
+      <p>ニューラルネットワークの行列積 $y = Wx$ において、角度誤差は<strong>活性化パターンの変化</strong>（どのニューロンが発火するか）に直結するため、ノルム誤差よりも品質への影響が大きくなります。</p>
+      <p>$d$ 次元で各要素の量子化誤差が独立に $\mathcal{U}[-s/2, s/2]$ に従う場合、誤差ベクトルのノルムの期待値は:</p>
+      <div class="fm">$$\mathbb{E}\!\left[\|\mathbf{e}\|\right] = s \sqrt{\frac{d}{12}}$$</div>
+      <p>次元数 $d$ が増えるほど誤差ノルムは $\sqrt{d}$ で成長しますが、元のベクトルのノルムも $\sqrt{d}$ で成長するため、<strong>相対誤差は次元数に依存しません</strong>。一方、角度誤差は高次元ほど小さくなる傾向があります（Johnson-Lindenstraussの類似性）。</p>
+      <p>グラフの<span style="color:var(--orange)">オレンジの扇形</span>は角度誤差を視覚化したものです。INT4で $\theta > 5°$ を超えるベクトルでは、行列積の出力に有意な影響が生じ始めます。</p>
+      <p><strong>3. ベクトル和の誤差（右パネル）:</strong></p>
+      <p>ニューラルネットワークの行列積 $y = Wx$ は、重み行列の行ベクトルと入力の内積の「和」です。右パネルは量子化後の合計ベクトル $\sum Q(\mathbf{w}_i)$ が元の合計 $\sum \mathbf{w}_i$ からどれだけずれるかを示します。</p>
+      <p>各ベクトルの量子化誤差を $\mathbf{e}_i = \mathbf{w}_i - Q(\mathbf{w}_i)$ とすると、合計の誤差は:</p>
+      <div class="fm">$$\left\|\sum_i \mathbf{e}_i\right\| \le \sum_i \|\mathbf{e}_i\| \quad \text{(三角不等式)}$$</div>
+      <p>しかし $\mathbf{e}_i$ の方向がランダムに分散するため、実際には<strong>大数の法則</strong>により:</p>
+      <div class="fm">$$\mathbb{E}\!\left[\left\|\sum_i \mathbf{e}_i\right\|^2\right] = \sum_i \mathbb{E}\!\left[\|\mathbf{e}_i\|^2\right] = N \cdot \frac{d \cdot s^2}{12}$$</div>
+      <div class="fm">$$\left\|\sum_i \mathbf{e}_i\right\| \approx \sqrt{N} \cdot s\sqrt{\frac{d}{12}} \ll N \cdot \frac{s}{2}\sqrt{d}$$</div>
+      <p>つまり $N$ 個のベクトルを足すと、誤差は最悪ケースの $N$ 倍ではなく <strong>$\sqrt{N}$ 倍</strong>にしか成長しません。これが「量子化しても行列積が壊れにくい」根本的な理由です。再生成を何度か試すと、合計誤差が個別平均より小さいケース（誤差が相殺）が頻繁に観察できます。</p>
+    </details>
+  </div>
+
+  <details class="note">
+    <summary>解説: 量子化誤差の数理 — 鋸歯状パターンとスケールの違い</summary>
+
+    <p><strong>■ 鋸歯状（三角波）パターンの正体</strong></p>
+    <p>INT4の散布図に見える<strong>規則的な波模様</strong>は、量子化の本質そのものです。対称量子化のグリッド間隔 $s$ で並ぶ量子化点の間で、誤差 $\epsilon(x) = |x - Q(x)|$ は以下の三角波を描きます:</p>
+    <div class="fm">$$\epsilon(x) = \left|x - s \cdot \mathrm{round}\!\left(\frac{x}{s}\right)\right|$$</div>
+    <p>各量子化点 $c_k = k \cdot s$ を中心に、$\epsilon$ は <strong>0 → $s/2$ → 0</strong> と線形に増減します。つまりグリッド点ちょうどでは誤差0、グリッド点の中間で最大誤差 $s/2$ に達します。これが周期 $s$ の<strong>三角波</strong>です:</p>
+    <div class="fm">$$\epsilon(x) = \frac{s}{2} - \left|\,\left(x \bmod s\right) - \frac{s}{2}\,\right|$$</div>
+
+    <p><strong>■ INT8にも同じパターンがある — 見えないだけ</strong></p>
+    <p>INT8もまったく同じ三角波構造を持ちます。見えない理由は<strong>スケールの違い</strong>です:</p>
+    <div class="fm">$$s_4 = \frac{\alpha}{2^3 - 1} = \frac{\alpha}{7}, \quad s_8 = \frac{\alpha}{2^7 - 1} = \frac{\alpha}{127}$$</div>
+    <p>INT8のグリッド間隔はINT4の約 $127/7 \approx 18$ 倍細かいため、三角波の振幅（最大誤差）も約18倍小さくなります:</p>
+    <div class="fm">$$\frac{s_4 / 2}{s_8 / 2} = \frac{q_{\max,8}}{q_{\max,4}} = \frac{127}{7} \approx 18.1$$</div>
+    <p>このグラフではY軸がINT4の最大誤差に合わせてスケーリングされているため、<strong>INT8の三角波は高さ $1/18$ に圧縮されて水平線のように見える</strong>だけです。INT8だけを拡大表示すれば、全く同じ鋸歯状パターンが現れます。</p>
+
+    <p><strong>■ 一般化: ビット幅と誤差包絡線</strong></p>
+    <p>任意のビット幅 $b$ に対する誤差の包絡線は:</p>
+    <div class="fm">$$0 \le \epsilon(x) \le \frac{s_b}{2} = \frac{\alpha}{2(2^{b-1} - 1)}$$</div>
+    <p>グラフ上では、散布図の点が $y = 0$ と $y = s_b/2$ の間の<strong>帯状の領域</strong>を埋め、三角波の谷（$\epsilon = 0$）は量子化グリッド点の位置に対応します。INT4は7本の谷、INT8は127本の谷があります。</p>
+
+    <p><strong>■ なぜ0付近は誤差が小さく見えるか</strong></p>
+    <p>鋸歯状パターンの振幅 $s/2$ は位置によらず一定ですが、散布図ではX軸の0付近に点が<strong>密集</strong>しています（正規分布のため）。密集した点群の中では三角波の個々の山が識別しづらく、「0付近は低誤差」に見えます。実際には絶対誤差は全域で同じ $[0, s/2]$ の範囲です。</p>
+
+    <p>ただし<strong>相対誤差</strong>は異なります:</p>
+    <div class="fm">$$\epsilon_{\mathrm{rel}}(x) = \frac{\epsilon(x)}{|x|} \le \frac{s/2}{|x|}$$</div>
+    <p>NNの出力への影響は $|w| \cdot \epsilon$ に比例するため、$|w|$ が小さい0付近の重みの量子化誤差は出力にほぼ影響しません。</p>
+
+    <p><strong>■ クリッピング誤差</strong></p>
+    <p>$|x| > \alpha$ の値は $\alpha$ に切り詰められ、三角波の上限を超えた単調増加の誤差が生じます:</p>
+    <div class="fm">$$\epsilon_{\mathrm{clip}}(x) = |x| - \alpha \quad \text{(for } |x| > \alpha \text{)}$$</div>
+    <div class="warn">INT4では $q_{\max} = 7$ で、全ての重みが<strong>たった15個の値</strong> $\{-7s, \ldots, 0, \ldots, 7s\}$ のいずれかに丸められます。7Bモデルの70億パラメータがわずか15段階に。それでも動作するのは、重みの分布が0付近に集中しておりMSEが十分小さいためです。</div>
+  </details>
+</div>
+
+<!-- TRADEOFF -->
+<div class="sec">
+  <h2>⚡ メモリ・速度・品質トレードオフ</h2>
+  <div class="pnl">
+    <div class="ctrl-row">
+      <div><label>モデルサイズ</label>
+        <select id="mSz" onchange="doTradeoff()" style="font-size:.9rem">
+          <option value="1.5">1.5B (Qwen2.5等)</option><option value="3">3B (Llama 3.2等)</option>
+          <option value="7" selected>7B (Llama 2-7B等)</option><option value="13">13B (Llama 2-13B等)</option>
+          <option value="34">34B (CodeLlama-34B等)</option><option value="70">70B (Llama 2-70B等)</option>
+        </select>
+      </div>
+    </div>
+    <div class="cg" id="tfCards"></div>
+    <details class="note">
+      <summary>解説: メモリ・帯域幅・演算量の定量分析</summary>
+      <p><strong>メモリ使用量</strong>はパラメータ数 $N$ とビット幅 $b$ から:</p>
+      <div class="fm">$$\text{VRAM}_{\mathrm{weights}} = \frac{N \times b}{8} \;\text{[bytes]}$$</div>
+      <p>例: $N = 7 \times 10^9$, $b = 32$ → $28\,\text{GB}$。$b = 4$ → $3.5\,\text{GB}$。</p>
+      <p>ただし推論時にはKVキャッシュの分も必要です。シーケンス長 $L$、層数 $n_l$、隠れ次元 $d$ のとき:</p>
+      <div class="fm">$$\text{VRAM}_{\mathrm{KV}} = 2 \times n_l \times L \times d \times \frac{b_{\mathrm{kv}}}{8}$$</div>
+      <p><strong>推論スループット</strong>: 自己回帰推論は1トークンずつ生成するため、<strong>メモリ帯域律速</strong>（compute-boundではなくmemory-bound）になります。帯域幅 $B_{\mathrm{mem}}$ [GB/s] のとき:</p>
+      <div class="fm">$$\text{tokens/s} \approx \frac{B_{\mathrm{mem}}}{\text{VRAM}_{\mathrm{weights}} / N_{\mathrm{tokens\_batch}}}$$</div>
+      <p>ビット幅を半分にすると転送データ量も半分 → <strong>約2倍速</strong>。A100 (2TB/s) でINT4-7Bモデルなら理論上 $\sim 570$ tokens/s。</p>
+      <p><strong>演算量 (FLOPs)</strong>: INT8/INT4の整数演算はFP32の浮動小数点演算より高速で、A100ではINT8がFP32比で約4倍のスループット (624 TOPS vs 156 TFLOPS) です。</p>
+      <div class="eg">INT4にすれば、8GB VRAMの消費者向けGPU (RTX 3060等) で7Bモデルが動きます。FP32だとA100 (80GB) クラスが必要です。この差が「量子化革命」の核心です。</div>
+    </details>
+  </div>
+</div>
+</div>
+
+<!-- ==================== TAB 2 ==================== -->
+<div class="tab" id="t-playground">
+<div class="stabs" id="pgSt">
+  <button class="on" data-s="sym">対称量子化</button>
+  <button data-s="asym">非対称量子化</button>
+  <button data-s="blk">ブロック量子化</button>
+</div>
+
+<!-- SYMMETRIC -->
+<div class="psub on" id="s-sym">
+<details class="note" open>
+  <summary>対称量子化 — 最も基本的な手法</summary>
+  <p><span class="kw">対称量子化</span>は、値の範囲を $[-\alpha, +\alpha]$ と仮定し（$\alpha = \max|w_i|$）、0を中心に等間隔で離散化します。</p>
+  <p><strong>量子化 (Quantize):</strong></p>
+  <div class="fm">$$s = \frac{\alpha}{2^{b-1} - 1}, \quad q = \mathrm{round}\!\left(\frac{x}{s}\right), \quad q_c = \mathrm{clamp}(q, -q_{\max}, q_{\max})$$</div>
+  <p><strong>逆量子化 (Dequantize):</strong></p>
+  <div class="fm">$$\hat{x} = q_c \cdot s$$</div>
+  <p>特徴: <strong>$x=0$ が正確に $q=0$ にマッピング</strong>されるため、ReLU後のスパースなテンソル（多くの0を含む）に最適。zero-pointの保存が不要でメモリ効率が良い。</p>
+</details>
+<div class="g2">
+  <div class="pnl">
+    <h3>ステップバイステップ</h3>
+    <div class="ctrl-row">
+      <div><label>入力値</label><input type="number" id="sV" value="0.75" step="0.01" style="width:100px"></div>
+      <div><label>absMax</label><input type="number" id="sA" value="1.0" step="0.1" style="width:80px"></div>
+      <div><label>ビット幅</label><select id="sB"><option value="8">INT8</option><option value="4">INT4</option><option value="2">INT2</option></select></div>
+      <button class="btn-go" onclick="doSym()">計算</button>
+    </div>
+    <ol class="slist" id="sSteps"></ol>
+  </div>
+  <div class="pnl">
+    <h3>数直線（ドラッグで値を変更可能）</h3>
+    <canvas id="sNL" height="140" style="cursor:ew-resize"></canvas>
+    <div style="margin-top:.6rem;font-size:.8rem;color:var(--text-muted);display:flex;gap:1.2rem;flex-wrap:wrap">
+      <span><span style="color:var(--accent)">●</span> 元の値</span>
+      <span><span style="color:var(--red)">●</span> 量子化値</span>
+      <span style="color:var(--border2)">| 量子化グリッド</span>
+      <span style="color:var(--orange)">--- 誤差</span>
+    </div>
+    <details class="note">
+      <summary>解説: 数直線の見方</summary>
+      <p>細い縦線 = <strong>量子化レベル</strong>（取りうる値の候補）。INT8なら255本、INT4なら15本。</p>
+      <p>青い点（元の値）が最も近い量子化レベルに「吸い寄せられる」のが量子化です。赤い点との差が<strong>量子化誤差</strong>。</p>
+      <p><strong>数直線上をドラッグ</strong>すると入力値がリアルタイムに変わります。ビット幅を切り替えてグリッドの粗さの違いを体感してください。</p>
+    </details>
+  </div>
+</div>
+</div>
+
+<!-- ASYMMETRIC -->
+<div class="psub" id="s-asym" style="display:none">
+<details class="note" open>
+  <summary>非対称量子化 — 偏った分布に強い</summary>
+  <p><span class="kw">非対称量子化</span>は<strong><span class="tip" data-tip="実数の0が整数の何番目に対応するかを示すオフセット値">zero-point $z$</span></strong>を導入し、$[x_{\min}, x_{\max}]$ を $[0, 2^b - 1]$ にアフィン変換します。</p>
+  <p><strong>パラメータ計算:</strong></p>
+  <div class="fm">$$s = \frac{x_{\max} - x_{\min}}{2^b - 1}, \quad z = \mathrm{round}\!\left(-\frac{x_{\min}}{s}\right)$$</div>
+  <p><strong>量子化・逆量子化:</strong></p>
+  <div class="fm">$$q = \mathrm{clamp}\!\left(\mathrm{round}\!\left(\frac{x}{s} + z\right),\; 0,\; 2^b - 1\right), \quad \hat{x} = (q - z) \cdot s$$</div>
+  <p>行列積 $Y = XW^T$ の計算時、$\hat{W} = s(q_W - z)$ を展開すると:</p>
+  <div class="fm">$$Y = s \cdot X \cdot q_W^T - s \cdot z \cdot \mathbf{1}^T X^T$$</div>
+  <p>第2項のzero-point補正が追加コストとなります。</p>
+  <div class="eg">対称量子化が「$-100$℃〜$+100$℃の温度計」で室温を測るようなものなら、非対称は「$15$℃〜$35$℃専用温度計」に切り替えるイメージ。必要な範囲だけカバーするので精度が上がります。</div>
+</details>
+<div class="g2">
+  <div class="pnl">
+    <h3>ステップバイステップ</h3>
+    <div class="ctrl-row">
+      <div><label>入力値</label><input type="number" id="aV" value="0.3" step="0.01" style="width:90px"></div>
+      <div><label>min</label><input type="number" id="aMn" value="-0.5" step="0.1" style="width:80px"></div>
+      <div><label>max</label><input type="number" id="aMx" value="1.5" step="0.1" style="width:80px"></div>
+      <div><label>ビット幅</label><select id="aB"><option value="8">INT8</option><option value="4">INT4</option></select></div>
+      <button class="btn-go" onclick="doAsym()">計算</button>
+    </div>
+    <ol class="slist" id="aSteps"></ol>
+  </div>
+  <div class="pnl">
+    <h3>対称 vs 非対称 比較</h3>
+    <canvas id="aNL" height="170"></canvas>
+    <div style="font-size:.8rem;color:var(--text-muted);margin-top:.5rem">上段=対称（赤点） / 下段=非対称（緑点）。量子化グリッドの配置の違いに注目。</div>
+    <details class="note">
+      <summary>解説: どちらを使うべき？</summary>
+      <ul>
+        <li><strong>対称</strong>: 重みが0中心に分布する場合に最適。シンプルで高速。zero-pointの保存不要。</li>
+        <li><strong>非対称</strong>: 活性化値（ReLU後は[0,∞)）など偏った分布に有効。zero-point分の追加コストあり。</li>
+      </ul>
+      <p>実務では<strong>重み→対称、活性化→非対称</strong>の組み合わせが標準です。</p>
+    </details>
+  </div>
+</div>
+</div>
+
+<!-- BLOCK -->
+<div class="psub" id="s-blk" style="display:none">
+<details class="note" open>
+  <summary>ブロック量子化 — 実用手法の基盤</summary>
+  <p><span class="kw">ブロック量子化</span>は重みベクトル $\mathbf{w} \in \mathbb{R}^n$ をブロックサイズ $g$ の小グループに分割し、<strong>ブロックごとに独立したscaleを計算</strong>します。</p>
+  <p>第 $k$ ブロック ($k = 0, 1, \ldots, \lceil n/g \rceil - 1$) のscale:</p>
+  <div class="fm">$$s_k = \frac{\max_{i \in \mathrm{block}_k} |w_i|}{2^{b-1} - 1}$$</div>
+  <p><strong>Per-Tensor</strong> ($g = n$): テンソル全体で1つの $s$ → 外れ値が全体の精度を支配</p>
+  <p><strong>Per-Block</strong> ($g = 32 \sim 128$): 外れ値の影響がブロック内に局所化</p>
+  <p><strong>実効ビット幅</strong>: ブロックサイズ $g$、INT$b$、scaleをFP16 (2 bytes) で保存する場合:</p>
+  <div class="fm">$$b_{\mathrm{eff}} = b + \frac{16}{g} \;\text{[bits/weight]}$$</div>
+  <p>例: $g=32$, $b=4$ → $b_{\mathrm{eff}} = 4 + 0.5 = 4.5$ bits/weight。GPTQ, AWQ, GGUF等の実用手法はすべてこの方式を採用。</p>
+  <div class="eg">100人のクラスをA〜Dの4段階評価にするとき、クラス全体で1つの基準 (Per-Tensor) だと、1人の天才に引っ張られて大半がD。科目別に基準を変える (Per-Block) と、各科目内で公平な評価になります。</div>
+</details>
+<div class="pnl">
+  <h3>Per-Tensor vs Per-Block 比較</h3>
+  <div class="ctrl-row">
+    <div><label>ブロックサイズ</label><select id="bSz"><option value="4">4</option><option value="8" selected>8</option><option value="16">16</option><option value="32">32</option></select></div>
+    <div><label>ビット幅</label><select id="bB"><option value="8">INT8</option><option value="4" selected>INT4</option></select></div>
+    <button class="btn-go" onclick="doBlock()">32個の重みで比較</button>
+  </div>
+  <div class="g2">
+    <div>
+      <h4 style="font-size:.9rem;color:var(--orange);margin-bottom:.5rem">Per-Tensor（1つのscale）</h4>
+      <canvas id="bTC" height="210"></canvas>
+      <div id="bTE" style="font-size:.85rem;margin-top:.4rem"></div>
+    </div>
+    <div>
+      <h4 style="font-size:.9rem;color:var(--green);margin-bottom:.5rem">Per-Block（ブロック別scale）</h4>
+      <canvas id="bBC" height="210"></canvas>
+      <div id="bBE" style="font-size:.85rem;margin-top:.4rem"></div>
+    </div>
+  </div>
+  <details class="note" style="margin-top:1rem">
+    <summary>解説: Per-Block量子化の誤差低減メカニズム</summary>
+    <p>Per-TensorのMSEは、外れ値 $w_{\mathrm{outlier}}$ がscaleを支配する場合:</p>
+    <div class="fm">$$s_{\mathrm{tensor}} = \frac{|w_{\mathrm{outlier}}|}{q_{\max}}, \quad \mathrm{MSE}_{\mathrm{tensor}} = \frac{s_{\mathrm{tensor}}^2}{12} = \frac{w_{\mathrm{outlier}}^2}{12 \cdot q_{\max}^2}$$</div>
+    <p>Per-Blockでは、外れ値を含まないブロックは自身の局所的な $\alpha_k$ でscaleを計算するため:</p>
+    <div class="fm">$$\mathrm{MSE}_{\mathrm{block}} = \frac{1}{K}\sum_{k=1}^{K} \frac{s_k^2}{12} \ll \mathrm{MSE}_{\mathrm{tensor}}$$</div>
+    <p>外れ値ブロックのみが大きなscaleを持ち、残りのブロックは最適なscaleを維持します。</p>
+    <div class="warn"><strong>ストレージオーバーヘッド</strong>: $g=32$, INT4の場合、$32 \times 0.5 + 2 = 18$ bytes → <strong>平均 4.5 bits/weight</strong>。$g$ を小さくするほどMSEは減るが、scaleの保存コスト $16/g$ bits が増加するトレードオフ。最適な $g$ はモデルの重み分布に依存します。</div>
+  </details>
+</div>
+</div>
+</div>
+
+<!-- ==================== TAB 3 ==================== -->
+<div class="tab" id="t-compare">
+
+<details class="note" open>
+  <summary>量子化手法ごとの出力品質の違い</summary>
+  <p>同じプロンプトを異なる量子化手法のモデルに与えたとき、<strong>応答の豊かさ・正確さ・ニュアンス</strong>にどのような差が出るかを示すシミュレーションデータです。</p>
+  <ul>
+    <li><strong>FP16 / AWQ</strong>: 元モデルに近い豊かな表現を維持</li>
+    <li><strong>INT4 / GGUF</strong>: 情報が圧縮され、詳細や微妙な表現が失われる傾向</li>
+    <li><strong>コード生成</strong>: 構造が明確なため量子化に強い</li>
+    <li><strong>創作・ニュアンス</strong>: 微妙な表現力が要求されるため品質差が出やすい</li>
+  </ul>
+</details>
+
+<div class="stabs" id="cSt">
+  <button class="on" data-s="cTbl">比較テーブル</button>
+  <button data-s="cMth">手法カード</button>
+  <button data-s="cUsr">ユーザー入力</button>
+</div>
+
+<div class="csub on" id="s-cTbl"><div class="pnl">
+  <h3>量子化手法別 応答品質比較</h3>
+  <div style="font-size:.85rem;color:var(--text-muted);margin-bottom:.8rem">テキストクリックで展開。★クリックで評価（LocalStorage保存）。</div>
+  <div class="ctbl" id="cTblW"></div>
+</div></div>
+
+<div class="csub" id="s-cMth" style="display:none"><div class="pnl"><h3>量子化手法の詳細</h3><div id="mCards"></div></div></div>
+
+<div class="csub" id="s-cUsr" style="display:none"><div class="pnl">
+  <h3>ユーザー入力モード</h3>
+  <p style="font-size:.88rem;color:var(--text-muted);margin-bottom:1rem">独自のプロンプト・応答を追加。比較テーブルに反映され、LocalStorageに永続保存されます。</p>
+  <div class="uis">
+    <div class="ctrl-row"><div><label>カテゴリ</label><input type="text" id="uCat" placeholder="例: コード生成" style="width:200px"></div></div>
+    <div><label style="font-size:.82rem;color:var(--text-muted);font-weight:600">プロンプト</label><textarea id="uPr" placeholder="プロンプトを入力..."></textarea></div>
+    <div id="uRI"></div>
+    <div style="margin-top:.8rem;display:flex;gap:.5rem">
+      <button onclick="addUE()" class="btn-p">テーブルに追加</button>
+      <button onclick="clrUE()" class="btn-d">全クリア</button>
+    </div>
+  </div>
+  <div id="uEL" style="margin-top:1.5rem"></div>
+</div></div>
+</div>
+
+<!-- ==================== TAB 4: 深掘り分析 ==================== -->
+<div class="tab" id="t-deep">
+
+<!-- Section A: 外れ値の破壊的影響 -->
+<div class="sec">
+  <h2>💥 外れ値の破壊的影響</h2>
+  <div class="pnl">
+    <h3>63個の正常重み + 1個の外れ値</h3>
+    <div class="ctrl-row">
+      <div><label>外れ値の大きさ</label><input type="range" id="outMag" min="0" max="50" value="0" step="1"><span class="val" id="outMagV">0</span></div>
+      <div><label>ビット幅</label>
+        <select id="outBits"><option value="8">INT8</option><option value="4" selected>INT4</option><option value="2">INT2</option></select>
+      </div>
+    </div>
+    <canvas id="outCanvas" height="220"></canvas>
+    <div class="stats-row" id="outStats"></div>
+    <details class="note">
+      <summary>解説: 外れ値問題の数理と対策手法</summary>
+      <p>Transformerの一部チャネルには、$|w_{\mathrm{out}}| \gg \sigma_w$ となる<strong>外れ値</strong>が存在します（Dettmers et al., 2022: LLM.int8()）。</p>
+      <p>外れ値がscaleに与える影響を定量化します。正常な重みの最大絶対値を $\alpha_n$、外れ値を $\alpha_o$ ($\alpha_o \gg \alpha_n$) とすると:</p>
+      <div class="fm">$$s = \frac{\alpha_o}{q_{\max}}, \quad \text{正常値の有効ビット幅} = \log_2\!\left(\frac{2\alpha_n}{s}\right) = b - 1 + \log_2\!\left(\frac{\alpha_n}{\alpha_o}\right)$$</div>
+      <p>$\alpha_o / \alpha_n = 100$ の場合、INT4 の正常値の有効ビット幅は $4 - 1 - 6.6 \approx -3.6$ → <strong>実質的に情報量ゼロ</strong>。</p>
+      <p><strong>対策手法:</strong></p>
+      <ul>
+        <li><strong>SmoothQuant</strong> (Xiao et al., 2023): 活性化のチャネル単位のスケーリング因子 $\mathrm{diag}(s_j)$ を用いて、$Y = (X \cdot \mathrm{diag}(s)^{-1}) \cdot (\mathrm{diag}(s) \cdot W)$ と等価変換。活性化の外れ値を重みに「移す」</li>
+        <li><strong>AWQ</strong> (Lin et al., 2024): 重要チャネル（活性化の大きさで測定）のscaleを $s_j = \left(\frac{\|X_j\|}{\max|W_j|}\right)^\alpha$ で事前調整。$\alpha$ は探索で最適化</li>
+        <li><strong>GPTQ</strong> (Frantar et al., 2023): 近似ヘッセ行列 $H = 2X^TX$ を用いた最適ブレインサージョン (OBS) で、各重みの量子化誤差を他の未量子化重みに分散:
+        $$\delta_F = -\frac{w_q - Q(w_q)}{[H^{-1}]_{qq}} \cdot H^{-1}_{:,q}$$</li>
+        <li><strong>Mixed-precision</strong> (LLM.int8()): 外れ値チャネル（上位0.1%）をFP16で保持し、残りをINT8で量子化</li>
+      </ul>
+      <div class="eg">スライダーを0→50に動かして、量子化グリッドがどう変化するか観察してください。外れ値=50では、正常値($\pm 1$)の領域のグリッドがほぼ消失し、有効ビット幅が0に近づきます。</div>
+    </details>
+  </div>
+</div>
+
+<!-- Section B: Perplexity vs ビット数 -->
+<div class="sec">
+  <h2>📈 Perplexity vs ビット数曲線</h2>
+  <div class="g2">
+    <div class="pnl">
+      <h3>モデルサイズ別 量子化感度</h3>
+      <div style="position:relative;height:320px"><canvas id="pplCv"></canvas></div>
+      <details class="note">
+        <summary>解説: Perplexityの数理的定義と量子化との関係</summary>
+        <p><strong>Perplexity (PPL)</strong> は言語モデルの予測性能を測る指標で、テストコーパスの $N$ トークンに対して:</p>
+        <div class="fm">$$\mathrm{PPL} = \exp\!\left(-\frac{1}{N}\sum_{i=1}^{N} \ln P(t_i \mid t_1, \ldots, t_{i-1})\right)$$</div>
+        <p>直感的には「次のトークンを予測する際の平均的な選択肢の数」。PPL = 10 なら、各ステップで平均10個の候補から選んでいるのと同等の不確実性。<strong>低いほど性能が良い</strong>。</p>
+        <p>量子化重み $\hat{W} = W + E$ を用いたモデルのPPL変化は、Taylor展開で近似すると:</p>
+        <div class="fm">$$\Delta \mathrm{PPL} \approx \mathrm{PPL}_0 \cdot \left(\frac{1}{N} \sum_i \nabla_W \mathcal{L}_i \cdot E + \frac{1}{2} E^T H E\right)$$</div>
+        <p>ここで $\mathcal{L}_i = -\ln P(t_i|\cdot)$ はクロスエントロピー損失、$H$ はヘッセ行列。GPTQはこの $E^T H E$ 項を最小化する手法です。</p>
+        <ul>
+          <li><strong>4bit以上</strong>: $\Delta\mathrm{PPL}/\mathrm{PPL}_0 \le 5\%$ → 実用上問題なし</li>
+          <li><strong>3bit以下</strong>: $\|E\|_F$ が急増し二次項が支配的に → <strong>品質の崖 (quality cliff)</strong></li>
+          <li><strong>大きいモデルほど量子化に強い</strong>: パラメータ冗長性が高く、$H$ の固有値が相対的に小さいため $E^T H E$ が抑制される</li>
+        </ul>
+      </details>
+    </div>
+    <div class="pnl">
+      <h3>実用ガイド</h3>
+      <div class="guide-cards">
+        <div class="guide-card" style="border-top:3px solid var(--red)">
+          <div class="gc-bits" style="color:var(--red)">2-3bit</div>
+          <div class="gc-label">研究用</div>
+          <div class="gc-desc">品質劣化が大きい。研究・実験目的。GPTQの最新手法でも限界あり</div>
+        </div>
+        <div class="guide-card" style="border-top:3px solid var(--orange)">
+          <div class="gc-bits" style="color:var(--orange)">4bit</div>
+          <div class="gc-label">実用最低ライン</div>
+          <div class="gc-desc">コスパ最強のスイートスポット。AWQ/GGUFで高品質を維持</div>
+        </div>
+        <div class="guide-card" style="border-top:3px solid var(--green)">
+          <div class="gc-bits" style="color:var(--green)">8bit</div>
+          <div class="gc-label">安全圏</div>
+          <div class="gc-desc">品質ほぼ無劣化。メモリ75%削減。商用利用の定番</div>
+        </div>
+        <div class="guide-card" style="border-top:3px solid var(--accent)">
+          <div class="gc-bits" style="color:var(--accent)">16bit</div>
+          <div class="gc-label">品質最優先</div>
+          <div class="gc-desc">FP32とほぼ同等。精度が絶対の場合。VRAM潤沢な環境向け</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section C: ニューラルネット計算ウォークスルー -->
+<div class="sec">
+  <h2>🧠 ニューラルネット計算ウォークスルー</h2>
+  <div class="pnl">
+    <h3>2入力→3隠れ→1出力 ネットワーク</h3>
+    <canvas id="nnCanvas" height="340"></canvas>
+    <div class="nn-lanes" id="nnLanes"></div>
+    <button class="btn-go" onclick="doNNWalk()" style="margin-top:1rem">新しい重みで再計算</button>
+    <details class="note">
+      <summary>解説: 順伝播における量子化誤差の伝搬</summary>
+      <p>$L$ 層のネットワーク $y = f_L \circ \cdots \circ f_1(x)$ において、各層の量子化誤差がどう伝搬するかを示しています。</p>
+      <p>層 $l$ の出力誤差 $\delta^{(l)} = \hat{y}^{(l)} - y^{(l)}$ は、Lipschitz定数 $K_l$ を用いて:</p>
+      <div class="fm">$$\|\delta^{(l)}\| \le K_l \|\delta^{(l-1)}\| + \|E^{(l)} x^{(l)}\|$$</div>
+      <p>$K_l = \|W^{(l)}\| \cdot \mathrm{Lip}(\sigma)$ で、ReLUの場合 $\mathrm{Lip}(\sigma) = 1$。最終層の誤差は:</p>
+      <div class="fm">$$\|\delta^{(L)}\| \le \sum_{l=1}^{L} \left(\prod_{k=l+1}^{L} K_k\right) \|E^{(l)} x^{(l)}\|$$</div>
+      <p>$\|W\|$ が小さい（重みが0付近に集中）ため $K_l < 1$ となることが多く、<strong>誤差は層を通じて減衰</strong>します。これが量子化が成立する根本的な理由です。</p>
+      <p><strong>色の意味</strong>: FP32の出力 $y_{\mathrm{FP32}}$ を基準として、$|\hat{y}_b - y_{\mathrm{FP32}}| / |y_{\mathrm{FP32}}|$ が小さいほど緑、大きいほど赤。</p>
+      <div class="eg">「新しい重みで再計算」を何度か押すと、INT8はFP32にほぼ一致し、INT4でも乖離が小さいケースが多いことがわかります。これがLipschitz定数 $< 1$ の効果です。</div>
+    </details>
+  </div>
+</div>
+
+</div>
+
+<script>
+// === Core ===
+function symQ(v,a,b){const q=(1<<(b-1))-1,s=a/q,r=Math.round(v/s),c=Math.max(-q,Math.min(q,r)),d=c*s;return{s,q:q,r,c,d,e:Math.abs(v-d)}}
+function asymQ(v,mn,mx,b){const qx=(1<<b)-1,s=(mx-mn)/qx,z=Math.round(-mn/s),r=Math.round(v/s+z),c=Math.max(0,Math.min(qx,r)),d=(c-z)*s;return{s,z,qx,r,c,d,e:Math.abs(v-d)}}
+function blkQ(w,bs,b){const r=[];for(let i=0;i<w.length;i+=bs){const bl=w.slice(i,i+bs),am=Math.max(...bl.map(Math.abs))||1e-10;bl.forEach(v=>{const x=symQ(v,am,b);r.push({o:v,d:x.d,e:x.e})})}return r}
+function genW(n,m,s){const w=[];for(let i=0;i<n;i+=2){const u=Math.random(),v=Math.random(),z=Math.sqrt(-2*Math.log(u));w.push(z*Math.cos(2*Math.PI*v)*s+m);if(i+1<n)w.push(z*Math.sin(2*Math.PI*v)*s+m)}return w}
+function hist(v,n){const mn=Math.min(...v),mx=Math.max(...v),w=(mx-mn)/n||1,b=Array(n).fill(0),l=[];for(let i=0;i<n;i++)l.push((mn+w*(i+.5)).toFixed(2));v.forEach(x=>{let i=Math.floor((x-mn)/w);if(i>=n)i=n-1;if(i<0)i=0;b[i]++});return{b,l}}
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// === KaTeX re-render on details toggle ===
+document.addEventListener('toggle',e=>{
+  if(e.target.tagName==='DETAILS'&&e.target.open&&typeof renderMathInElement==='function'){
+    renderMathInElement(e.target,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});
+  }
+},true);
+
+// === Nav ===
+const tnav=document.getElementById('tnav');
+const _tabInited={};
+function swTab(id){document.querySelectorAll('.tab').forEach(t=>{t.classList.remove('on');t.style.display='none'});
+  tnav.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  const el=document.getElementById('t-'+id);if(el){el.classList.add('on');el.style.display='block'}
+  const bt=tnav.querySelector(`[data-t="${id}"]`);if(bt)bt.classList.add('on');location.hash=id;
+  // Lazy init for tabs that need visible container (canvas/chart sizing)
+  requestAnimationFrame(()=>{
+    if(id==='why'){
+      if(!_tabInited.why){_tabInited.why=true;doWhyDist();doWhyRobust();doImageQuant();doMosaic();doTextQuant()}
+      doWhyPipe();doDegradation()}
+    if(id==='deep'){
+      if(!_tabInited.deep){_tabInited.deep=true;initOutWeights();doPPL()}
+      doOutlier();doNNWalk()}
+  })}
+tnav.addEventListener('click',e=>{if(e.target.dataset.t)swTab(e.target.dataset.t)});
+
+function initSubTabs(navId,cls){
+  document.getElementById(navId).addEventListener('click',e=>{
+    if(!e.target.dataset.s)return;
+    const p=e.target.closest('.tab')||e.target.parentElement.parentElement;
+    p.querySelectorAll('.'+cls).forEach(s=>{s.style.display='none';s.classList.remove('on')});
+    e.target.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+    e.target.classList.add('on');
+    const s=document.getElementById('s-'+e.target.dataset.s);
+    if(s){s.style.display='block';s.classList.add('on')}
+  });
+}
+initSubTabs('pgSt','psub');initSubTabs('cSt','csub');
+function handleHash(){swTab(location.hash.replace('#','')||'overview')}
+window.addEventListener('hashchange',handleHash);
+
+// === Bit Viz ===
+function doBits(){
+  const f=[{n:'FP32',s:1,e:8,m:23,d:'訓練の標準精度'},{n:'FP16',s:1,e:5,m:10,d:'推論の標準'},
+    {n:'INT8',s:1,e:0,m:7,d:'高効率量子化'},{n:'INT4',s:1,e:0,m:3,d:'極限圧縮'}];
+  document.getElementById('bitViz').innerHTML=f.map(x=>{
+    let bx='';for(let i=0;i<x.s;i++)bx+='<span class="bx s" title="符号"></span>';
+    for(let i=0;i<x.e;i++)bx+='<span class="bx e" title="指数"></span>';
+    for(let i=0;i<x.m;i++)bx+='<span class="bx m" title="仮数/値"></span>';
+    const t=x.s+x.e+x.m;
+    return`<div class="bit-row"><span class="bl">${x.n}</span><div class="bits">${bx}</div>
+      <span class="bit-meta">${t}bit · ${x.e>0?`符号${x.s} 指数${x.e} 仮数${x.m}`:`符号${x.s} 値${x.m}`} · ${x.d}</span></div>`;
+  }).join('')}
+
+// === Histogram ===
+let hCh=null;
+function doHist(){
+  const n=+document.getElementById('hN').value,s=+document.getElementById('hS').value;
+  document.getElementById('hNv').textContent=n;document.getElementById('hSv').textContent=s.toFixed(1);
+  const w=genW(n,0,s),am=Math.max(...w.map(Math.abs)),o=hist(w,40);
+  const h16=hist(w.map(v=>symQ(v,am,16).d),40),h8=hist(w.map(v=>symQ(v,am,8).d),40),h4=hist(w.map(v=>symQ(v,am,4).d),40);
+  const cv=document.getElementById('histCv');
+  if(typeof Chart!=='undefined'){
+    if(hCh)hCh.destroy();
+    hCh=new Chart(cv,{type:'bar',data:{labels:o.l,datasets:[
+      {label:'FP32',data:o.b,backgroundColor:'rgba(200,210,220,.2)',borderColor:'rgba(200,210,220,.5)',borderWidth:1,order:4},
+      {label:'FP16',data:h16.b,backgroundColor:'rgba(68,204,102,.15)',borderColor:'rgba(68,204,102,.6)',borderWidth:1,order:3},
+      {label:'INT8',data:h8.b,backgroundColor:'rgba(255,170,51,.2)',borderColor:'rgba(255,170,51,.7)',borderWidth:1,order:2},
+      {label:'INT4',data:h4.b,backgroundColor:'rgba(179,136,255,.2)',borderColor:'rgba(179,136,255,.7)',borderWidth:1,order:1}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:250},
+      plugins:{legend:{labels:{color:'#b8c0d0',font:{size:12},padding:16}}},
+      scales:{x:{ticks:{color:'#7888a0',maxTicksLimit:10,font:{size:10}},grid:{color:'#1a2030'}},
+        y:{ticks:{color:'#7888a0',font:{size:10}},grid:{color:'#1a2030'}}}}});
+  }
+}
+document.getElementById('hN').addEventListener('input',doHist);
+document.getElementById('hS').addEventListener('input',doHist);
+
+// === Error Scatter ===
+function doErrScatter(){
+  const N=+document.getElementById('esN').value;
+  document.getElementById('esNv').textContent=N;
+  const cv=document.getElementById('errScatter'),W=cv.parentElement.clientWidth;cv.width=W;
+  const H=cv.height,ctx=cv.getContext('2d'),m={l:55,r:20,t:20,b:40};
+  const pW=W-m.l-m.r,pH=H-m.t-m.b;
+  const w=genW(N,0,1),am=Math.max(...w.map(Math.abs))||1;
+  const e8=w.map(v=>({v,e:symQ(v,am,8).e})),e4=w.map(v=>({v,e:symQ(v,am,4).e}));
+  const maxE=Math.max(...e4.map(x=>x.e))||1;
+  const xP=v=>m.l+((v+am)/(2*am))*pW, yP=e=>m.t+pH-(e/maxE)*pH;
+  ctx.clearRect(0,0,W,H);
+  // Grid
+  ctx.strokeStyle='#1a2030';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(m.l,m.t+pH);ctx.lineTo(m.l+pW,m.t+pH);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(m.l,m.t);ctx.lineTo(m.l,m.t+pH);ctx.stroke();
+  // Zero line
+  ctx.strokeStyle='#2a3040';ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(xP(0),m.t);ctx.lineTo(xP(0),m.t+pH);ctx.stroke();ctx.setLineDash([]);
+  // Y ticks
+  ctx.fillStyle='#7888a0';ctx.font='9px sans-serif';ctx.textAlign='right';
+  for(let i=0;i<=4;i++){const eVal=maxE*i/4,py=yP(eVal);
+    ctx.fillText(eVal.toFixed(3),m.l-5,py+3);
+    ctx.strokeStyle='#1a2030';ctx.beginPath();ctx.moveTo(m.l,py);ctx.lineTo(m.l+pW,py);ctx.stroke()}
+  // X ticks
+  ctx.textAlign='center';
+  for(let i=-2;i<=2;i++){const xVal=am*i/2,px=xP(xVal);
+    if(px>=m.l&&px<=m.l+pW)ctx.fillText(xVal.toFixed(1),px,m.t+pH+14)}
+  // INT4 dots (draw first, behind)
+  e4.forEach(p=>{ctx.fillStyle='rgba(179,136,255,.4)';ctx.beginPath();ctx.arc(xP(p.v),yP(p.e),4,0,Math.PI*2);ctx.fill()});
+  // INT8 dots
+  e8.forEach(p=>{ctx.fillStyle='rgba(255,170,51,.5)';ctx.beginPath();ctx.arc(xP(p.v),yP(p.e),3,0,Math.PI*2);ctx.fill()});
+  // Legend
+  ctx.font='11px sans-serif';
+  ctx.fillStyle='#ffaa33';ctx.fillText('● INT8',m.l+60,m.t+14);
+  ctx.fillStyle='#b388ff';ctx.fillText('● INT4',m.l+130,m.t+14);
+  // Axis labels
+  ctx.fillStyle='#7888a0';ctx.font='10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('元の値',m.l+pW/2,H-4);
+  ctx.save();ctx.translate(12,m.t+pH/2);ctx.rotate(-Math.PI/2);ctx.fillText('量子化誤差',0,0);ctx.restore();
+  // Stats
+  const mean8=e8.reduce((s,x)=>s+x.e,0)/N,mean4=e4.reduce((s,x)=>s+x.e,0)/N;
+  const max8=Math.max(...e8.map(x=>x.e)),max4=Math.max(...e4.map(x=>x.e));
+  document.getElementById('esStats').innerHTML=
+    `<span style="color:#ffaa33">INT8</span>: 平均誤差 <strong>${mean8.toFixed(5)}</strong> / 最大 <strong>${max8.toFixed(5)}</strong>&nbsp;&nbsp;&nbsp;`+
+    `<span style="color:#b388ff">INT4</span>: 平均誤差 <strong>${mean4.toFixed(5)}</strong> / 最大 <strong>${max4.toFixed(5)}</strong>&nbsp;&nbsp;&nbsp;`+
+    `<span style="color:#ffaa33">INT4はINT8の約 <strong>${(mean4/mean8).toFixed(1)}倍</strong> の誤差</span>`;
+}
+document.getElementById('esN').addEventListener('input',doErrScatter);
+
+// === Snap Visualization ===
+function doSnapViz(){
+  const N=+document.getElementById('snapN').value;
+  document.getElementById('snapNv').textContent=N;
+  const cv=document.getElementById('snapCanvas'),W=cv.parentElement.clientWidth;cv.width=W;
+  const H=cv.height,ctx=cv.getContext('2d');
+  const vals=genW(N,0,0.8);
+  const am=Math.max(...vals.map(Math.abs))||1;
+  const range=am*1.15;
+  const mL=50,mR=20;const pW=W-mL-mR;
+  const xP=v=>mL+((v+range)/(2*range))*pW;
+  ctx.clearRect(0,0,W,H);
+
+  [{bits:8,label:'INT8 (256段階)',y:55,col:'#ffaa33'},{bits:4,label:'INT4 (16段階)',y:185,col:'#b388ff'}].forEach(cfg=>{
+    const Y=cfg.y;
+    // Section label
+    ctx.fillStyle=cfg.col;ctx.font='bold 11px sans-serif';ctx.textAlign='left';
+    ctx.fillText(cfg.label,mL,Y-35);
+    // Axis
+    ctx.strokeStyle='#2a3040';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(mL,Y);ctx.lineTo(W-mR,Y);ctx.stroke();
+    // Grid lines
+    const qmax=(1<<(cfg.bits-1))-1,sc=am/qmax;
+    ctx.strokeStyle='rgba('+( cfg.bits===8?'255,170,51':'179,136,255')+',.12)';
+    for(let q=-qmax;q<=qmax;q++){const lv=q*sc;if(Math.abs(lv)<=range){
+      const px=xP(lv);ctx.beginPath();ctx.moveTo(px,Y-18);ctx.lineTo(px,Y+18);ctx.stroke()}}
+    // Zero
+    ctx.strokeStyle='#556070';ctx.setLineDash([2,3]);
+    ctx.beginPath();ctx.moveTo(xP(0),Y-22);ctx.lineTo(xP(0),Y+22);ctx.stroke();ctx.setLineDash([]);
+    // Values with snap arrows
+    vals.forEach(v=>{
+      const r=symQ(v,am,cfg.bits);
+      const ox=xP(v),qx=xP(r.d);
+      // Arrow from original to quantized
+      if(Math.abs(ox-qx)>1){
+        ctx.strokeStyle='rgba(255,170,51,.5)';ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.moveTo(ox,Y-8);ctx.lineTo(qx,Y-8);ctx.stroke();
+        // Arrowhead
+        const dir=qx>ox?1:-1;
+        ctx.beginPath();ctx.moveTo(qx,Y-8);ctx.lineTo(qx-dir*5,Y-12);ctx.lineTo(qx-dir*5,Y-4);ctx.closePath();ctx.fillStyle='rgba(255,170,51,.5)';ctx.fill()}
+      // Original dot
+      ctx.fillStyle='#4da6ff';ctx.beginPath();ctx.arc(ox,Y,5,0,Math.PI*2);ctx.fill();
+      // Quantized dot
+      ctx.fillStyle=cfg.col;ctx.beginPath();ctx.arc(qx,Y+1,4,0,Math.PI*2);ctx.fill();
+    });
+  });
+  // Legend at bottom
+  ctx.fillStyle='#7888a0';ctx.font='10px sans-serif';ctx.textAlign='left';
+  ctx.fillStyle='#4da6ff';ctx.fillText('● 元の値',mL,H-8);
+  ctx.fillStyle='#ffaa33';ctx.fillText('● INT8量子化値',mL+75,H-8);
+  ctx.fillStyle='#b388ff';ctx.fillText('● INT4量子化値',mL+195,H-8);
+  ctx.fillStyle='#ffaa33';ctx.fillText('→ 丸め方向(誤差)',mL+315,H-8);
+}
+document.getElementById('snapN').addEventListener('input',doSnapViz);
+
+// === Vector Quantization 2D ===
+function doVecQuant(){
+  const bits=+document.getElementById('vqBits').value;
+  const N=+document.getElementById('vqN').value;
+  document.getElementById('vqNv').textContent=N;
+  const cv=document.getElementById('vqCanvas'),fullW=cv.parentElement.clientWidth;
+  cv.width=fullW;const H=cv.height,ctx=cv.getContext('2d');
+  const halfW=Math.floor(fullW/2)-10;
+  const divX=halfW+10; // divider x
+
+  // Generate random 2D vectors
+  const vecs=[];
+  for(let i=0;i<N;i++){
+    const x=(Math.random()*2-1)*0.9,y=(Math.random()*2-1)*0.9;
+    vecs.push([x,y]);
+  }
+  const allVals=vecs.flat();
+  const am=Math.max(...allVals.map(Math.abs))||1;
+
+  // Quantize each component
+  const qmax=(1<<(bits-1))-1;
+  const sc=am/qmax;
+  const qvecs=vecs.map(([vx,vy])=>{
+    const qx=Math.max(-qmax,Math.min(qmax,Math.round(vx/sc)))*sc;
+    const qy=Math.max(-qmax,Math.min(qmax,Math.round(vy/sc)))*sc;
+    return[qx,qy];
+  });
+
+  // Compute sums
+  const sumOrig=[0,0],sumQuant=[0,0];
+  vecs.forEach(([vx,vy])=>{sumOrig[0]+=vx;sumOrig[1]+=vy});
+  qvecs.forEach(([qx,qy])=>{sumQuant[0]+=qx;sumQuant[1]+=qy});
+
+  ctx.clearRect(0,0,fullW,H);
+
+  // ===== LEFT PANEL: Individual vectors =====
+  const R1=Math.min(halfW,H)/2-40;
+  const cx1=halfW/2,cy1=H/2;
+  const scale1=R1/am;
+  const toX1=v=>cx1+v*scale1,toY1=v=>cy1-v*scale1;
+
+  // Section title
+  ctx.fillStyle='#7888a0';ctx.font='bold 11px sans-serif';ctx.textAlign='center';
+  ctx.fillText('個別ベクトル',cx1,16);
+
+  // Grid
+  ctx.save();ctx.beginPath();ctx.rect(0,0,halfW,H);ctx.clip();
+  ctx.strokeStyle='rgba(77,166,255,.08)';ctx.lineWidth=0.5;
+  for(let q=-qmax;q<=qmax;q++){
+    const v=q*sc;
+    const px=toX1(v),py=toY1(v);
+    if(px>=cx1-R1-5&&px<=cx1+R1+5){ctx.beginPath();ctx.moveTo(px,cy1-R1);ctx.lineTo(px,cy1+R1);ctx.stroke();}
+    if(py>=cy1-R1-5&&py<=cy1+R1+5){ctx.beginPath();ctx.moveTo(cx1-R1,py);ctx.lineTo(cx1+R1,py);ctx.stroke();}
+  }
+  if(bits<=4){
+    ctx.fillStyle='rgba(77,166,255,.12)';
+    for(let gx=-qmax;gx<=qmax;gx++)for(let gy=-qmax;gy<=qmax;gy++){
+      const px=toX1(gx*sc),py=toY1(gy*sc);
+      if(px>=cx1-R1&&px<=cx1+R1&&py>=cy1-R1&&py<=cy1+R1){
+        ctx.beginPath();ctx.arc(px,py,1.5,0,Math.PI*2);ctx.fill();}
+    }
+  }
+  // Axes
+  ctx.strokeStyle='#3a4560';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cx1-R1-10,cy1);ctx.lineTo(cx1+R1+10,cy1);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx1,cy1-R1-10);ctx.lineTo(cx1,cy1+R1+10);ctx.stroke();
+
+  // Draw individual vectors
+  let totalAngle=0,totalNormErr=0,totalRelNorm=0;
+  const colors=['#4da6ff','#44cc66','#ff6688','#ffcc44','#b388ff','#44ddcc','#ff9933','#88aaff',
+    '#ff66aa','#66ffcc','#ccff44','#ff8844','#aa66ff','#66aaff','#ffaa66','#44ff88','#ff4466','#66ffaa','#ccaa44','#ff88cc'];
+
+  vecs.forEach(([vx,vy],i)=>{
+    const [qx,qy]=qvecs[i];
+    const col=colors[i%colors.length];
+    const ox=toX1(vx),oy=toY1(vy);
+    const dx=toX1(qx),dy=toY1(qy);
+    // Error dashed
+    ctx.strokeStyle='rgba(255,170,51,.4)';ctx.lineWidth=1.2;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(ox,oy);ctx.lineTo(dx,dy);ctx.stroke();ctx.setLineDash([]);
+    // Angular error arc
+    const origAng=Math.atan2(vy,vx),quantAng=Math.atan2(qy,qx),angDiff=quantAng-origAng;
+    if(Math.abs(angDiff)>0.01){
+      const arcR=Math.min(22,Math.sqrt((ox-cx1)**2+(oy-cy1)**2)*0.35);
+      ctx.strokeStyle='rgba(255,170,51,.3)';ctx.lineWidth=1;ctx.fillStyle='rgba(255,170,51,.06)';
+      ctx.beginPath();ctx.moveTo(cx1,cy1);ctx.arc(cx1,cy1,arcR,-origAng,-quantAng,angDiff>0);ctx.closePath();ctx.fill();ctx.stroke();}
+    // Original arrow
+    ctx.strokeStyle=col;ctx.lineWidth=2;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(cx1,cy1);ctx.lineTo(ox,oy);ctx.stroke();
+    const aLen=8,aAng=Math.atan2(cy1-oy,cx1-ox);
+    ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(ox,oy);
+    ctx.lineTo(ox+aLen*Math.cos(aAng+0.35),oy+aLen*Math.sin(aAng+0.35));
+    ctx.lineTo(ox+aLen*Math.cos(aAng-0.35),oy+aLen*Math.sin(aAng-0.35));ctx.closePath();ctx.fill();
+    // Quantized arrow (dashed + ring)
+    ctx.strokeStyle=col;ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(cx1,cy1);ctx.lineTo(dx,dy);ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(dx,dy,3,0,Math.PI*2);ctx.stroke();
+    // Collect stats
+    const nO=Math.sqrt(vx*vx+vy*vy),nQ=Math.sqrt(qx*qx+qy*qy);
+    const dot=vx*qx+vy*qy,cosA=nO>0&&nQ>0?dot/(nO*nQ):1;
+    totalAngle+=Math.acos(Math.max(-1,Math.min(1,cosA)))*180/Math.PI;
+    totalNormErr+=Math.abs(nO-nQ);if(nO>0)totalRelNorm+=Math.abs(nO-nQ)/nO;
+  });
+  ctx.restore();
+
+  // ===== DIVIDER =====
+  ctx.strokeStyle='#2a3040';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(divX,20);ctx.lineTo(divX,H-20);ctx.stroke();ctx.setLineDash([]);
+
+  // ===== RIGHT PANEL: Vector sum =====
+  const rOff=divX+10;
+  const rW=fullW-rOff;
+  const R2=Math.min(rW,H)/2-40;
+  const cx2=rOff+rW/2,cy2=H/2;
+  // Scale for the sum panel: based on max component of sums
+  const sumAm=Math.max(Math.abs(sumOrig[0]),Math.abs(sumOrig[1]),Math.abs(sumQuant[0]),Math.abs(sumQuant[1]),0.01);
+  const scale2=R2/sumAm;
+  const toX2=v=>cx2+v*scale2,toY2=v=>cy2-v*scale2;
+
+  // Section title
+  ctx.fillStyle='#7888a0';ctx.font='bold 11px sans-serif';ctx.textAlign='center';
+  ctx.fillText('ベクトルの合計（Σ）',cx2,16);
+
+  ctx.save();ctx.beginPath();ctx.rect(rOff,0,rW,H);ctx.clip();
+
+  // Axes
+  ctx.strokeStyle='#3a4560';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cx2-R2-10,cy2);ctx.lineTo(cx2+R2+10,cy2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx2,cy2-R2-10);ctx.lineTo(cx2,cy2+R2+10);ctx.stroke();
+
+  // Draw partial sums (accumulated path) for original
+  let accX=0,accY=0;
+  ctx.globalAlpha=0.25;
+  vecs.forEach(([vx,vy],i)=>{
+    const col=colors[i%colors.length];
+    const fromPx=toX2(accX),fromPy=toY2(accY);
+    accX+=vx;accY+=vy;
+    const toPx=toX2(accX),toPy=toY2(accY);
+    ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(fromPx,fromPy);ctx.lineTo(toPx,toPy);ctx.stroke();
+  });
+  // Partial sums for quantized
+  let accQX=0,accQY=0;
+  qvecs.forEach(([qx,qy],i)=>{
+    const col=colors[i%colors.length];
+    const fromPx=toX2(accQX),fromPy=toY2(accQY);
+    accQX+=qx;accQY+=qy;
+    const toPx=toX2(accQX),toPy=toY2(accQY);
+    ctx.strokeStyle=col;ctx.lineWidth=1;ctx.setLineDash([3,2]);
+    ctx.beginPath();ctx.moveTo(fromPx,fromPy);ctx.lineTo(toPx,toPy);ctx.stroke();ctx.setLineDash([]);
+  });
+  ctx.globalAlpha=1.0;
+
+  // Sum original: thick arrow
+  const sox=toX2(sumOrig[0]),soy=toY2(sumOrig[1]);
+  ctx.strokeStyle='#4da6ff';ctx.lineWidth=3.5;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(cx2,cy2);ctx.lineTo(sox,soy);ctx.stroke();
+  // Arrowhead
+  const sAng=Math.atan2(cy2-soy,cx2-sox);
+  ctx.fillStyle='#4da6ff';ctx.beginPath();ctx.moveTo(sox,soy);
+  ctx.lineTo(sox+12*Math.cos(sAng+0.35),soy+12*Math.sin(sAng+0.35));
+  ctx.lineTo(sox+12*Math.cos(sAng-0.35),soy+12*Math.sin(sAng-0.35));ctx.closePath();ctx.fill();
+
+  // Sum quantized: thick dashed arrow
+  const sqx=toX2(sumQuant[0]),sqy=toY2(sumQuant[1]);
+  ctx.strokeStyle='#ff5555';ctx.lineWidth=3;ctx.setLineDash([6,4]);
+  ctx.beginPath();ctx.moveTo(cx2,cy2);ctx.lineTo(sqx,sqy);ctx.stroke();ctx.setLineDash([]);
+  // Ring tip
+  ctx.strokeStyle='#ff5555';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.arc(sqx,sqy,5,0,Math.PI*2);ctx.stroke();
+
+  // Error vector between sum tips
+  ctx.strokeStyle='#ffaa33';ctx.lineWidth=2;ctx.setLineDash([4,3]);
+  ctx.beginPath();ctx.moveTo(sox,soy);ctx.lineTo(sqx,sqy);ctx.stroke();ctx.setLineDash([]);
+  // Error label
+  const errNorm=Math.sqrt((sumOrig[0]-sumQuant[0])**2+(sumOrig[1]-sumQuant[1])**2);
+  const eLabelX=(sox+sqx)/2,eLabelY=(soy+sqy)/2-10;
+  ctx.fillStyle='#ffaa33';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('Σe = '+errNorm.toFixed(3),eLabelX,eLabelY);
+
+  // Angular error arc for sum
+  const sumOrigAng=Math.atan2(sumOrig[1],sumOrig[0]);
+  const sumQuantAng=Math.atan2(sumQuant[1],sumQuant[0]);
+  const sumAngDiff=sumQuantAng-sumOrigAng;
+  if(Math.abs(sumAngDiff)>0.005){
+    const arcR2=Math.min(40,Math.sqrt((sox-cx2)**2+(soy-cy2)**2)*0.3);
+    ctx.strokeStyle='rgba(255,170,51,.5)';ctx.lineWidth=1.5;ctx.fillStyle='rgba(255,170,51,.1)';
+    ctx.beginPath();ctx.moveTo(cx2,cy2);ctx.arc(cx2,cy2,arcR2,-sumOrigAng,-sumQuantAng,sumAngDiff>0);ctx.closePath();ctx.fill();ctx.stroke();
+  }
+
+  // Labels for sum vectors
+  ctx.font='10px sans-serif';ctx.textAlign='left';
+  ctx.fillStyle='#4da6ff';ctx.fillText('Σw (元)',sox+8,soy-4);
+  ctx.fillStyle='#ff5555';ctx.fillText('ΣQ(w)',sqx+8,sqy+12);
+
+  ctx.restore();
+
+  // ===== LEGEND (bottom) =====
+  ctx.font='10px sans-serif';ctx.textAlign='left';
+  const ly=H-8;
+  ctx.fillStyle='#4da6ff';ctx.fillText('→ 元（実線）',8,ly);
+  ctx.fillStyle='#7888a0';ctx.fillText('○ 量子化（破線）',110,ly);
+  ctx.fillStyle='#ffaa33';ctx.fillText('--- 誤差',240,ly);
+  ctx.fillStyle='#4da6ff';ctx.fillText('Σw 合計（青太）',310,ly);
+  ctx.fillStyle='#ff5555';ctx.fillText('ΣQ(w) 量子化合計（赤破線）',440,ly);
+
+  // ===== STATS =====
+  const sumNormOrig=Math.sqrt(sumOrig[0]**2+sumOrig[1]**2);
+  const sumNormQuant=Math.sqrt(sumQuant[0]**2+sumQuant[1]**2);
+  const sumDot=sumOrig[0]*sumQuant[0]+sumOrig[1]*sumQuant[1];
+  const sumCosA=sumNormOrig>0&&sumNormQuant>0?sumDot/(sumNormOrig*sumNormQuant):1;
+  const sumAngleErr=Math.acos(Math.max(-1,Math.min(1,sumCosA)))*180/Math.PI;
+  const avgIndivErr=vecs.reduce((s,[vx,vy],i)=>{
+    const [qx,qy]=qvecs[i];return s+Math.sqrt((vx-qx)**2+(vy-qy)**2);},0)/N;
+
+  document.getElementById('vqStats').innerHTML=
+    `<strong>INT${bits}</strong>: 格子 ${(2*qmax+1)}×${(2*qmax+1)} = <strong>${(2*qmax+1)*(2*qmax+1)}</strong>点 / scale = <strong>${sc.toFixed(4)}</strong><br>`+
+    `<strong>個別</strong>: 平均角度誤差 <strong style="color:var(--orange)">${(totalAngle/N).toFixed(2)}°</strong> / 平均‖e‖ = <strong>${avgIndivErr.toFixed(4)}</strong><br>`+
+    `<strong>合計 Σ</strong>: ‖Σw‖ = ${sumNormOrig.toFixed(3)}, ‖ΣQ(w)‖ = ${sumNormQuant.toFixed(3)} / `+
+    `<strong style="color:var(--orange)">角度誤差 ${sumAngleErr.toFixed(2)}°</strong> / `+
+    `<strong>‖Σe‖ = ${errNorm.toFixed(4)}</strong>`+
+    ` (個別平均の <strong>${(errNorm/avgIndivErr).toFixed(1)}倍</strong> — `+
+    (errNorm < avgIndivErr*N*0.7?`<span style="color:var(--green)">誤差が相殺</span>)`:`<span style="color:var(--orange)">誤差が蓄積</span>)`);
+}
+document.getElementById('vqBits').addEventListener('change',doVecQuant);
+document.getElementById('vqN').addEventListener('input',function(){document.getElementById('vqNv').textContent=this.value;doVecQuant()});
+
+// === Tradeoff ===
+function doTradeoff(){
+  const B=+document.getElementById('mSz').value||7,mx=B*4;
+  const c=[{n:'FP32',b:32,t:'t0',sp:'1.0×',q:'基準(100%)',d:'訓練精度。最も正確'},{n:'FP16',b:16,t:'t1',sp:'~2×',q:'≈99.9%',d:'推論の標準。劣化なし'},
+    {n:'INT8',b:8,t:'t2',sp:'~3×',q:'≈99%',d:'高効率。ほぼ品質維持'},{n:'INT4',b:4,t:'t3',sp:'~4×',q:'≈95%',d:'極限圧縮。手法次第'}];
+  const cols={t0:'#7888a0',t1:'#44cc66',t2:'#ffaa33',t3:'#b388ff'};
+  document.getElementById('tfCards').innerHTML=c.map(x=>{
+    const m=(B*x.b/8).toFixed(1),p=(B*x.b/8)/mx*100;
+    return`<div class="mc ${x.t}"><div class="mt">${x.n} (${x.b}bit)</div><div class="mv">${m}GB</div>
+      <div class="bar"><div style="width:${p}%;background:${cols[x.t]}"></div></div>
+      <div class="md">速度: <strong>${x.sp}</strong><br>品質: <strong>${x.q}</strong><br>${x.d}</div></div>`}).join('')}
+
+// === Symmetric ===
+let symDrag=false;
+function doSym(){
+  const v=+document.getElementById('sV').value,a=+document.getElementById('sA').value,b=+document.getElementById('sB').value;
+  const r=symQ(v,a,b);
+  document.getElementById('sSteps').innerHTML=`
+    <li>入力: value=${v}, absMax=${a}, bits=${b}<span class="d">量子化対象の値と範囲を設定</span></li>
+    <li>qmax = 2^(${b}-1)-1 = <strong>${r.q}</strong><span class="d">整数の最大値。[-${r.q}, +${r.q}] の範囲にマッピング</span></li>
+    <li>scale = ${a}/${r.q} = <strong>${r.s.toFixed(6)}</strong><span class="d">量子化グリッドの間隔。これより細かい差は消える</span></li>
+    <li>round(${v}/${r.s.toFixed(6)}) = round(${(v/r.s).toFixed(3)}) = <strong>${r.r}</strong><span class="d">ここで丸め(round)が発生 → 情報損失の瞬間</span></li>
+    <li>clamp(${r.r}, -${r.q}..${r.q}) = <strong>${r.c}</strong><span class="d">範囲外なら切り詰め</span></li>
+    <li class="ok">逆量子化: ${r.c} × ${r.s.toFixed(6)} = <strong>${r.d.toFixed(6)}</strong><span class="d">整数→実数に復元。これが最終的な近似値</span></li>
+    <li class="${r.e>0.01?'ng':'ok'}">誤差: |${v} - ${r.d.toFixed(6)}| = <strong>${r.e.toFixed(6)}</strong><span class="d">${r.e<0.001?'極めて小さい誤差':r.e<0.05?'実用上問題ないレベル':'ビット幅不足。精度要確認'}</span></li>`;
+  drawSNL(v,r,a);
+}
+
+function drawSNL(v,r,a){
+  const cv=document.getElementById('sNL'),W=cv.parentElement.clientWidth;cv.width=W;
+  const H=cv.height,ctx=cv.getContext('2d'),M=55,Y=H*.48,rng=a*1.2;
+  const x=val=>M+(val+rng)/(2*rng)*(W-2*M);
+  ctx.clearRect(0,0,W,H);
+  // axis
+  ctx.strokeStyle='#2a3040';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(M,Y);ctx.lineTo(W-M,Y);ctx.stroke();
+  // levels
+  for(let q=-r.q;q<=r.q;q++){const lv=q*r.s;if(Math.abs(lv)<=rng){const px=x(lv);
+    ctx.strokeStyle='#2a304066';ctx.beginPath();ctx.moveTo(px,Y-12);ctx.lineTo(px,Y+12);ctx.stroke()}}
+  // zero
+  ctx.strokeStyle='#556070';ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(x(0),Y-22);ctx.lineTo(x(0),Y+22);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#556070';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText('0',x(0),Y+36);
+  // error
+  const ox=x(v),qx=x(r.d);
+  if(Math.abs(ox-qx)>1){ctx.strokeStyle='rgba(255,170,51,.5)';ctx.lineWidth=2;ctx.setLineDash([5,3]);
+    ctx.beginPath();ctx.moveTo(ox,Y-18);ctx.lineTo(qx,Y-18);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#ffaa33';ctx.font='10px sans-serif';ctx.fillText(`誤差:${r.e.toFixed(4)}`,(ox+qx)/2,Y-24)}
+  // original
+  ctx.fillStyle='#4da6ff';ctx.beginPath();ctx.arc(ox,Y,8,0,Math.PI*2);ctx.fill();
+  ctx.font='11px sans-serif';ctx.fillText(`元:${v}`,ox,Y-34);
+  // quantized
+  ctx.fillStyle='#ff5555';ctx.beginPath();ctx.arc(qx,Y,8,0,Math.PI*2);ctx.fill();
+  ctx.fillText(`量子化:${r.d.toFixed(4)}`,qx,Y+38);
+  // range
+  ctx.fillStyle='#556070';ctx.font='9px sans-serif';ctx.textAlign='left';ctx.fillText(`-${a}`,M,Y+36);
+  ctx.textAlign='right';ctx.fillText(`+${a}`,W-M,Y+36);
+}
+// Drag on number line
+(function(){
+  const cv=document.getElementById('sNL');
+  function getVal(e){const r=cv.getBoundingClientRect(),px=e.clientX-r.left,M=55,W=cv.width;
+    const a=+document.getElementById('sA').value,rng=a*1.2;
+    return((px-M)/(W-2*M)*2*rng-rng)}
+  cv.addEventListener('mousedown',e=>{symDrag=true;const v=getVal(e);
+    document.getElementById('sV').value=v.toFixed(2);doSym()});
+  cv.addEventListener('mousemove',e=>{if(!symDrag)return;const v=getVal(e);
+    document.getElementById('sV').value=v.toFixed(2);doSym()});
+  window.addEventListener('mouseup',()=>symDrag=false);
+})();
+document.getElementById('sB').addEventListener('change',doSym);
+
+// === Asymmetric ===
+function doAsym(){
+  const v=+document.getElementById('aV').value,mn=+document.getElementById('aMn').value,mx=+document.getElementById('aMx').value,b=+document.getElementById('aB').value;
+  const r=asymQ(v,mn,mx,b);
+  document.getElementById('aSteps').innerHTML=`
+    <li>入力: value=${v}, min=${mn}, max=${mx}, bits=${b}<span class="d">実際の重みの最小・最大値を使用</span></li>
+    <li>qmax = 2^${b}-1 = <strong>${r.qx}</strong><span class="d">[0, ${r.qx}]の符号なし整数範囲</span></li>
+    <li>scale = (${mx}-(${mn}))/${r.qx} = <strong>${r.s.toFixed(6)}</strong><span class="d">量子化グリッド間隔</span></li>
+    <li>zero_point = round(${(-mn/r.s).toFixed(3)}) = <strong>${r.z}</strong><span class="d">実数の0に対応する整数値。非対称量子化の核心</span></li>
+    <li>round(${v}/${r.s.toFixed(6)}+${r.z}) = <strong>${r.r}</strong></li>
+    <li>clamp(0,${r.qx}): <strong>${r.c}</strong></li>
+    <li class="ok">逆量子化: (${r.c}-${r.z})×${r.s.toFixed(6)} = <strong>${r.d.toFixed(6)}</strong></li>
+    <li class="${r.e>0.01?'ng':'ok'}">誤差 = <strong>${r.e.toFixed(6)}</strong></li>`;
+  drawANL(v,mn,mx,r,b);
+}
+function drawANL(v,mn,mx,r,b){
+  const cv=document.getElementById('aNL'),W=cv.parentElement.clientWidth;cv.width=W;
+  const H=cv.height,ctx=cv.getContext('2d'),M=60,rng=Math.max(Math.abs(mn),Math.abs(mx))*1.3;
+  const x=val=>M+(val+rng)/(2*rng)*(W-2*M);
+  const am=Math.max(Math.abs(mn),Math.abs(mx)),sR=symQ(v,am,b),y1=45,y2=120;
+  ctx.clearRect(0,0,W,H);
+  [y1,y2].forEach(ly=>{ctx.strokeStyle='#2a3040';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(M,ly);ctx.lineTo(W-M,ly);ctx.stroke()});
+  ctx.fillStyle='#556070';ctx.font='11px sans-serif';ctx.textAlign='left';
+  ctx.fillText('対称',4,y1+4);ctx.fillText('非対称',4,y2+4);
+  for(let q=-sR.q;q<=sR.q;q++){const lv=q*sR.s;if(Math.abs(lv)<=rng){ctx.strokeStyle='#2a304044';ctx.beginPath();ctx.moveTo(x(lv),y1-7);ctx.lineTo(x(lv),y1+7);ctx.stroke()}}
+  for(let q=0;q<=r.qx;q++){const lv=(q-r.z)*r.s;if(Math.abs(lv)<=rng){ctx.strokeStyle='#2a304044';ctx.beginPath();ctx.moveTo(x(lv),y2-7);ctx.lineTo(x(lv),y2+7);ctx.stroke()}}
+  const ox=x(v);
+  ctx.fillStyle='#4da6ff';ctx.beginPath();ctx.arc(ox,y1,5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(ox,y2,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#ff5555';ctx.beginPath();ctx.arc(x(sR.d),y1,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#44cc66';ctx.beginPath();ctx.arc(x(r.d),y2,5,0,Math.PI*2);ctx.fill();
+  ctx.textAlign='center';ctx.font='10px sans-serif';
+  ctx.fillStyle='#ff5555';ctx.fillText(`誤差:${sR.e.toFixed(5)}`,x(sR.d),y1-12);
+  ctx.fillStyle='#44cc66';ctx.fillText(`誤差:${r.e.toFixed(5)}`,x(r.d),y2-12);
+  ctx.strokeStyle='rgba(255,170,51,.3)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(x(0),y2-16);ctx.lineTo(x(0),y2+16);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#ffaa33';ctx.font='9px sans-serif';ctx.fillText(`ZP=${r.z}`,x(0),y2+30);
+}
+
+// === Block ===
+function doBlock(){
+  const bs=+document.getElementById('bSz').value,b=+document.getElementById('bB').value,w=genW(32,0,1);
+  const am=Math.max(...w.map(Math.abs)),tQ=w.map(v=>{const r=symQ(v,am,b);return{o:v,d:r.d,e:r.e}});
+  const bQ=blkQ(w,bs,b);
+  const tM=tQ.reduce((s,q)=>s+q.e**2,0)/tQ.length,bM=bQ.reduce((s,q)=>s+q.e**2,0)/bQ.length;
+  const tA=tQ.reduce((s,q)=>s+q.e,0)/tQ.length,bA=bQ.reduce((s,q)=>s+q.e,0)/bQ.length;
+  drawBC('bTC',w,tQ,bs,'#ffaa33');drawBC('bBC',w,bQ,bs,'#44cc66');
+  const imp=tM>0?((1-bM/tM)*100).toFixed(1):0;
+  document.getElementById('bTE').innerHTML=`MSE:<strong>${tM.toFixed(6)}</strong> MAE:<strong>${tA.toFixed(6)}</strong>`;
+  document.getElementById('bBE').innerHTML=`MSE:<strong style="color:var(--green)">${bM.toFixed(6)}</strong> MAE:<strong style="color:var(--green)">${bA.toFixed(6)}</strong> <span style="color:var(--green);font-size:.82rem">(${imp}%改善)</span>`;
+}
+function drawBC(id,orig,quant,bs,col){
+  const cv=document.getElementById(id),W=cv.parentElement.clientWidth;cv.width=W;
+  const H=cv.height,ctx=cv.getContext('2d'),m={l:40,r:15,t:15,b:30};
+  const pW=W-m.l-m.r,pH=H-m.t-m.b,ma=Math.max(...orig.map(Math.abs))*1.2;
+  const xP=i=>m.l+(i/(orig.length-1))*pW,yP=v=>m.t+pH/2-(v/ma)*(pH/2);
+  ctx.clearRect(0,0,W,H);
+  // block seps
+  ctx.strokeStyle='#ffffff08';for(let i=bs;i<orig.length;i+=bs){const bx=xP(i-.5);ctx.beginPath();ctx.moveTo(bx,m.t);ctx.lineTo(bx,H-m.b);ctx.stroke()}
+  ctx.strokeStyle='#1a2030';ctx.beginPath();ctx.moveTo(m.l,yP(0));ctx.lineTo(W-m.r,yP(0));ctx.stroke();
+  // error bars
+  quant.forEach((q,i)=>{ctx.strokeStyle='rgba(255,170,51,.25)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(xP(i),yP(q.o));ctx.lineTo(xP(i),yP(q.d));ctx.stroke()});
+  // lines
+  ctx.strokeStyle='#4da6ff';ctx.lineWidth=2;ctx.beginPath();orig.forEach((w,i)=>{i===0?ctx.moveTo(xP(i),yP(w)):ctx.lineTo(xP(i),yP(w))});ctx.stroke();
+  ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();quant.forEach((q,i)=>{i===0?ctx.moveTo(xP(i),yP(q.d)):ctx.lineTo(xP(i),yP(q.d))});ctx.stroke();
+  // dots
+  orig.forEach((w,i)=>{ctx.fillStyle='#4da6ff';ctx.beginPath();ctx.arc(xP(i),yP(w),3,0,Math.PI*2);ctx.fill()});
+  quant.forEach((q,i)=>{ctx.fillStyle=col;ctx.beginPath();ctx.arc(xP(i),yP(q.d),3,0,Math.PI*2);ctx.fill()});
+  ctx.fillStyle='#556070';ctx.font='10px sans-serif';ctx.textAlign='left';
+  ctx.fillStyle='#4da6ff';ctx.fillText('● 元',m.l+5,H-6);ctx.fillStyle=col;ctx.fillText('● 量子化',m.l+50,H-6);
+}
+
+// === Tab3 Data ===
+const MT=['FP16','INT8','INT4','GPTQ','AWQ','GGUF Q4_K_M'];
+const CD=[
+  {cat:'事実質問',pr:'日本の首都はどこですか？その歴史的背景を説明してください。',rs:{'FP16':'日本の首都は東京です。794年に平安京（京都）が首都となり、1868年の明治維新で東京に遷都されました。江戸幕府の所在地であった江戸が東京と改名され、天皇の居所となりました。','INT8':'日本の首都は東京です。794年に京都が首都となり、1868年の明治維新で東京に遷都されました。江戸が東京と改名され、天皇の居所となりました。','INT4':'日本の首都は東京です。明治維新で京都から東京に遷都しました。江戸時代の名残りで東京が首都になりました。','GPTQ':'日本の首都は東京です。794年に平安京が首都となり、1868年の明治維新を経て東京に遷都されました。政治・経済の中心地として発展しています。','AWQ':'日本の首都は東京です。歴史的には京都が長く首都でしたが、1868年に東京へ遷都されました。江戸幕府の政治基盤があった地で、近代化の象徴となりました。','GGUF Q4_K_M':'日本の首都は東京です。明治維新（1868年）に京都から遷都。江戸が東京に改名され、以降日本の政治経済の中心です。'},rt:{'FP16':5,'INT8':4,'INT4':3,'GPTQ':4,'AWQ':5,'GGUF Q4_K_M':3}},
+  {cat:'推論',pr:'トロッコ問題について、功利主義とカント倫理学の観点から分析してください。',rs:{'FP16':'功利主義の観点では、5人を救うためにレバーを引くべきです。ベンサムの「最大多数の最大幸福」原理に従えば、1人の犠牲で5人が助かる結果が道徳的に正当化されます。一方、カント倫理学では、人を手段として扱うことは定言命法に反します。','INT8':'功利主義では5人を救うためレバーを引くべきとされます。最大多数の最大幸福の原理です。カント倫理学では人を手段として扱うことは許されず、定言命法に反します。','INT4':'功利主義：多くの人を救うべき。カント：人を手段にしてはいけない。哲学的に答えが出ない問題です。','GPTQ':'功利主義の立場からは、5人を救う選択が合理的です。カント倫理学では、定言命法により人を単なる手段にすることを禁じています。','AWQ':'功利主義では結果を重視し、5人の命を救うためにレバーを引くことが正当化されます。カント倫理学では行為の普遍化可能性を問い、人を手段として利用することを禁じます。','GGUF Q4_K_M':'功利主義は結果重視で5人を救う選択を支持。カント倫理学は人の尊厳を重視し、犠牲を正当化しません。'},rt:{'FP16':5,'INT8':4,'INT4':2,'GPTQ':4,'AWQ':5,'GGUF Q4_K_M':3}},
+  {cat:'創作',pr:'桜の花びらが散る春の午後を舞台に短編を書いてください。',rs:{'FP16':'桜吹雪の中、老人はベンチに座り、亡き妻が好きだった花びらを掌で受けた。「また来年も」——風が言葉を運んだ。','INT8':'桜が舞う公園で、老人は妻を思い出した。手のひらに花びらが落ちる。「また来年」と風が囁いた。','INT4':'桜が散る公園で老人が座っている。花びらが手に落ちた。春の午後だった。','GPTQ':'桜吹雪の下、ベンチの老人は掌に花びらを受けた。妻との記憶が蘇る。「来年も見よう」と空に呟いた。','AWQ':'風に舞う桜の下、老人は静かに目を閉じた。花びらが頬を撫でる——妻の指先のように。「ありがとう」声にならない声。','GGUF Q4_K_M':'公園のベンチに座る老人。桜の花びらが肩に落ちる。隣の空席を見つめ、微笑んだ。'},rt:{'FP16':5,'INT8':4,'INT4':2,'GPTQ':4,'AWQ':5,'GGUF Q4_K_M':3}},
+  {cat:'コード',pr:'Pythonでフィボナッチ数列をメモ化で実装してください。',rs:{'FP16':'from functools import lru_cache\n\n@lru_cache(maxsize=None)\ndef fib(n):\n    if n < 2: return n\n    return fib(n-1) + fib(n-2)\n\nfor i in range(10): print(fib(i), end=" ")','INT8':'from functools import lru_cache\n\n@lru_cache(maxsize=None)\ndef fib(n):\n    if n < 2: return n\n    return fib(n-1) + fib(n-2)\n\nprint([fib(i) for i in range(10)])','INT4':'def fib(n, memo={}):\n    if n in memo: return memo[n]\n    if n < 2: return n\n    memo[n] = fib(n-1) + fib(n-2)\n    return memo[n]','GPTQ':'from functools import lru_cache\n\n@lru_cache(maxsize=None)\ndef fibonacci(n: int) -> int:\n    if n < 2: return n\n    return fibonacci(n-1) + fibonacci(n-2)\n\nprint([fibonacci(i) for i in range(10)])','AWQ':'from functools import lru_cache\n\n@lru_cache(maxsize=None)\ndef fib(n: int) -> int:\n    """メモ化フィボナッチ"""\n    if n < 2: return n\n    return fib(n-1) + fib(n-2)\n\nprint([fib(i) for i in range(10)])','GGUF Q4_K_M':'def fib(n, memo={}):\n    if n < 2: return n\n    if n not in memo:\n        memo[n] = fib(n-1)+fib(n-2)\n    return memo[n]'},rt:{'FP16':5,'INT8':5,'INT4':4,'GPTQ':5,'AWQ':5,'GGUF Q4_K_M':4}},
+  {cat:'ニュアンス',pr:'「頭がいい」と「賢い」の違いは？',rs:{'FP16':'「頭がいい」は知的能力・処理速度の高さを示し、学力や計算能力など測定可能な知性を含意します。「賢い」はより広い概念で、状況判断力・洞察力・知恵を含み、人生経験から得られる実践的な判断力を指すことが多いです。','INT8':'「頭がいい」は知的能力の高さを指します。「賢い」は判断力や知恵を含むより広い概念です。','INT4':'「頭がいい」は知能が高い。「賢い」は判断力がある。似ているが違います。','GPTQ':'「頭がいい」は知的処理能力の高さ、「賢い」は知恵や洞察力を含む広い概念です。','AWQ':'「頭がいい」はIQ的な知的能力、「賢い」は知恵(wisdom)に近い。子供に「頭がいいね」とは言うが、「賢いね」は大人に使うことが多い点も特徴的です。','GGUF Q4_K_M':'「頭がいい」は知的能力、「賢い」は知恵や判断力を表します。'},rt:{'FP16':5,'INT8':4,'INT4':2,'GPTQ':4,'AWQ':5,'GGUF Q4_K_M':3}},
+  {cat:'長文',pr:'量子コンピュータの基本原理を3段落で説明してください。',rs:{'FP16':'量子コンピュータは量子ビット(qubit)を使用し、重ね合わせにより0と1を同時に保持します。n個のqubitで2^n状態を同時表現可能です。\n\n量子もつれにより離れたqubit間に相関が生まれ、並列計算を効率化します。Shorの素因数分解やGroverの検索が代表例です。\n\n最大の課題はデコヒーレンスです。量子状態は環境ノイズで急速に崩壊するため、極低温環境や量子誤り訂正が不可欠です。','INT8':'qubitは重ね合わせで0と1を同時に表現。n個で2^n状態を処理できます。\n\n量子もつれで並列計算が可能。Shorのアルゴリズムなどが応用例です。\n\nデコヒーレンスが課題で、誤り訂正技術が実用化の鍵です。','INT4':'qubitで0と1を同時に扱い、並列計算が可能です。\n\n量子もつれで高速計算を実現します。\n\nデコヒーレンスが課題です。','GPTQ':'量子ビットの重ね合わせでn個のqubitが2^n状態を表現。\n\n量子もつれでShorやGroverのアルゴリズムが指数的高速化を実現。\n\nデコヒーレンスが実用上の課題で、超伝導やイオントラップで研究中。','AWQ':'qubitは重ね合わせで0と1を同時保持し、2^n次元ヒルベルト空間を形成。\n\n量子もつれで古典物理では説明できない相関を計算資源として活用。RSA暗号を脅かすShorのアルゴリズムが有名。\n\nデコヒーレンスが最大の技術的課題。極低温環境と量子誤り訂正符号が不可欠。','GGUF Q4_K_M':'qubitで0と1を同時表現。量子もつれで並列計算。デコヒーレンスが課題。'},rt:{'FP16':5,'INT8':4,'INT4':2,'GPTQ':4,'AWQ':5,'GGUF Q4_K_M':3}}
+];
+
+// === Tab3 Render ===
+let rats={};
+function ldR(){try{const s=localStorage.getItem('qv-r');if(s)rats=JSON.parse(s)}catch(e){}}
+function svR(){try{localStorage.setItem('qv-r',JSON.stringify(rats))}catch(e){}}
+function doCT(){
+  ldR();const all=[...CD,...getUE()];
+  let h='<table><thead><tr><th style="min-width:65px">カテゴリ</th><th style="min-width:140px">プロンプト</th>';
+  MT.forEach(m=>h+=`<th style="min-width:170px">${m}</th>`);h+='</tr></thead><tbody>';
+  all.forEach((r,i)=>{
+    h+=`<tr><td style="white-space:nowrap;font-weight:700;font-size:.82rem">${r.cat}</td><td style="font-size:.82rem">${r.pr}</td>`;
+    MT.forEach(m=>{const rsp=(r.rs&&r.rs[m])||'—',k=`${i}-${m}`,rt=rats[k]!==undefined?rats[k]:(r.rt&&r.rt[m])||0;
+      h+=`<td><div class="cc" onclick="this.classList.toggle('exp')"><pre style="white-space:pre-wrap;font-size:.8rem;font-family:inherit;margin:0;color:var(--text2)">${esc(rsp)}</pre></div>
+        <span class="tb" onclick="this.previousElementSibling.classList.toggle('exp')">展開</span>
+        <div class="sr" data-k="${k}">${[1,2,3,4,5].map(s=>`<span class="st ${s<=rt?'f':''}" data-s="${s}" onclick="setR('${k}',${s})">★</span>`).join('')}</div></td>`});
+    h+='</tr>'});
+  h+='</tbody></table>';document.getElementById('cTblW').innerHTML=h}
+function setR(k,v){rats[k]=v;svR();const c=document.querySelector(`.sr[data-k="${k}"]`);
+  if(c)c.querySelectorAll('.st').forEach(s=>s.classList.toggle('f',+s.dataset.s<=v))}
+
+function doMC(){
+  const ms=[
+    {n:'FP16 (半精度浮動小数点)',d:'32bit→16bit変換。指数5bit、仮数10bitで表現。GPUのTensor Coreで直接演算可能なため、推論速度も向上する。最もシンプルな軽量化手法。',sz:'50%削減(1/2)',pp:'+0.01%以下',fw:['PyTorch','TensorFlow','ONNX'],p:['品質劣化ほぼゼロ','Tensor Core最適化','ツール不要'],c:['削減率50%止まり']},
+    {n:'INT8 (8bit整数量子化)',d:'重みを8bit整数に変換。対称/非対称を選択可能。キャリブレーションデータで精度向上。多くのHWアクセラレータがINT8をネイティブサポート。',sz:'75%削減(1/4)',pp:'+0.1〜0.5%',fw:['ONNX Runtime','TensorRT','PyTorch'],p:['大幅メモリ削減','CPU/GPU両方で高速','広いHWサポート'],c:['キャリブレーション必要']},
+    {n:'INT4 (4bit整数量子化)',d:'わずか16段階で重み表現。ブロック量子化と組み合わせて使用。LLMを消費者向けGPU(8GB VRAM)で動かすための必須技術。',sz:'87.5%削減(1/8)',pp:'+0.5〜2%',fw:['bitsandbytes','llama.cpp','AutoGPTQ'],p:['最大メモリ削減','LLMを手元で実行可能'],c:['品質低下が顕著な場合あり','学習時は使用困難']},
+    {n:'GPTQ (Frantar et al., 2022)',d:'OBQ(Optimal Brain Quantization)に基づくPTQ手法。ヘッセ行列の近似を用いて、量子化しても出力への影響が最小になるよう重みを逐次調整。128サンプル程度のキャリブレーションデータを使用。',sz:'75〜87.5%削減',pp:'+0.2〜1%',fw:['AutoGPTQ','ExLlama','TGI'],p:['高圧縮率で品質維持','GPU推論最適化','幅広いモデル対応'],c:['量子化に数時間','キャリブレーションデータ依存','CPU推論は非効率']},
+    {n:'AWQ (Lin et al., 2023)',d:'「活性化値が大きいチャネルの重みは重要」という知見に基づき、重要チャネルのscaleを調整して量子化誤差を最小化。GPTQよりシンプルで高速な量子化プロセス。',sz:'75〜87.5%削減',pp:'+0.1〜0.5%',fw:['AutoAWQ','vLLM','TGI'],p:['GPTQより高品質傾向','量子化が高速','推論速度が速い'],c:['比較的新しい手法']},
+    {n:'GGUF Q4_K_M (llama.cpp)',d:'llama.cpp独自フォーマット。K-quant方式でブロックサイズと精度を層ごとに最適化。Kはk-means的クラスタリング、MはMedium品質。Apple Silicon(Metal)やx86(AVX2)で高速動作。',sz:'~80%削減',pp:'+0.3〜1%',fw:['llama.cpp','Ollama','LM Studio','koboldcpp'],p:['CPU推論最適','Apple Silicon対応','即使える'],c:['GPU推論はGPTQ/AWQに劣る']}
+  ];
+  document.getElementById('mCards').innerHTML=ms.map(m=>`<div class="mcd"><h4>${m.n}</h4>
+    <p class="md">${m.d}</p>
+    <div class="ms"><span>サイズ削減: <strong>${m.sz}</strong></span><span>Perplexity増加: <strong>${m.pp}</strong></span></div>
+    <div style="margin-bottom:.5rem">${m.fw.map(f=>`<span class="tg fw">${f}</span>`).join('')}</div>
+    <div>${m.p.map(p=>`<span class="tg pro">+ ${p}</span>`).join('')}${m.c.map(c=>`<span class="tg con">- ${c}</span>`).join('')}</div></div>`).join('')}
+
+// === User Input ===
+function getUE(){try{const s=localStorage.getItem('qv-ue');return s?JSON.parse(s):[]}catch(e){return[]}}
+function svUE(e){try{localStorage.setItem('qv-ue',JSON.stringify(e))}catch(e){}}
+function doURI(){document.getElementById('uRI').innerHTML=MT.map(m=>
+  `<div style="margin-top:.5rem"><label style="font-size:.82rem;color:var(--text-muted);font-weight:600">${m}:</label>
+   <textarea id="ur_${m.replace(/\s/g,'_')}" placeholder="${m}の応答..." style="width:100%;min-height:40px"></textarea></div>`).join('')}
+function addUE(){
+  const cat=document.getElementById('uCat').value.trim(),pr=document.getElementById('uPr').value.trim();
+  if(!cat||!pr){alert('カテゴリとプロンプトを入力');return}
+  const rs={};MT.forEach(m=>{const el=document.getElementById('ur_'+m.replace(/\s/g,'_'));rs[m]=el?el.value.trim():''});
+  const e=getUE();e.push({cat,pr,rs,rt:{}});svUE(e);
+  document.getElementById('uCat').value='';document.getElementById('uPr').value='';
+  MT.forEach(m=>{const el=document.getElementById('ur_'+m.replace(/\s/g,'_'));if(el)el.value=''});
+  doUEL();doCT()}
+function clrUE(){if(!confirm('全データ削除？'))return;svUE([]);doUEL();doCT()}
+function delUE(i){const e=getUE();e.splice(i,1);svUE(e);doUEL();doCT()}
+function doUEL(){
+  const e=getUE(),c=document.getElementById('uEL');
+  if(!e.length){c.innerHTML='<p style="color:var(--text-muted)">追加データなし</p>';return}
+  c.innerHTML=`<h4 style="margin-bottom:.5rem">追加済み(${e.length}件)</h4>`+
+    e.map((x,i)=>`<div class="mcd"><div style="display:flex;justify-content:space-between;align-items:center">
+      <h4 style="font-size:.9rem">[${x.cat}] ${x.pr.substring(0,70)}${x.pr.length>70?'...':''}</h4>
+      <button onclick="delUE(${i})" class="btn-d">削除</button></div></div>`).join('')}
+
+// === Tab0: Why Quantization ===
+
+// Section A: Pipeline experience
+function doWhyPipe(){
+  const v=+document.getElementById('whyVal').value,b=+document.getElementById('whyBits').value;
+  document.getElementById('whyValV').textContent=v.toFixed(2);
+  const absMax=2.0,qmax=(1<<(b-1))-1,sc=absMax/qmax;
+  const qInt=Math.round(v/sc),clamped=Math.max(-qmax,Math.min(qmax,qInt)),deq=clamped*sc;
+  const err=Math.abs(v-deq);
+  document.getElementById('whyPipe').innerHTML=
+    `<div class="pipe-box active"><div class="pipe-label">入力 (実数)</div><div class="pipe-val" style="color:var(--accent)">${v.toFixed(4)}</div></div>`+
+    `<div class="pipe-arrow">→</div>`+
+    `<div class="pipe-box"><div class="pipe-label">÷ scale (${sc.toFixed(4)})</div><div class="pipe-val">${(v/sc).toFixed(2)}</div></div>`+
+    `<div class="pipe-arrow">→</div>`+
+    `<div class="pipe-box"><div class="pipe-label">round → clamp</div><div class="pipe-val" style="color:var(--orange)">${clamped}</div></div>`+
+    `<div class="pipe-arrow">→</div>`+
+    `<div class="pipe-box"><div class="pipe-label">× scale (復元)</div><div class="pipe-val" style="color:var(--green)">${deq.toFixed(4)}</div></div>`+
+    `<div class="pipe-arrow">→</div>`+
+    `<div class="pipe-box active"><div class="pipe-label">誤差</div><div class="pipe-val" style="color:${err<0.01?'var(--green)':err<0.1?'var(--orange)':'var(--red)'}">${err.toFixed(4)}</div></div>`;
+  document.getElementById('whyErrVal').textContent=err.toFixed(6);
+  const maxErr=sc; // max possible error is half a step ≈ scale
+  const pct=Math.min(err/(absMax*0.5)*100,100);
+  const bar=document.getElementById('whyErrBar');
+  bar.style.width=pct+'%';
+  bar.style.background=pct<5?'var(--green)':pct<30?'var(--orange)':'var(--red)';
+  document.getElementById('whyErrLabel').textContent=pct<5?'極小':pct<30?'中程度':'大';
+  // Pipeline diagram canvas
+  const pcv=document.getElementById('pipeDiagram'),pW=pcv.parentElement.clientWidth;pcv.width=pW;
+  const pH=pcv.height,pctx=pcv.getContext('2d');
+  pctx.clearRect(0,0,pW,pH);
+  const mL=40,mR=40,lineY=pH*0.5;
+  const range=absMax*1.15;
+  const xPos=val=>mL+((val+range)/(2*range))*(pW-mL-mR);
+  // Number line
+  pctx.strokeStyle='#2a3040';pctx.lineWidth=2;
+  pctx.beginPath();pctx.moveTo(mL,lineY);pctx.lineTo(pW-mR,lineY);pctx.stroke();
+  // Grid ticks
+  pctx.strokeStyle='rgba(77,166,255,.15)';pctx.lineWidth=1;
+  for(let q=-qmax;q<=qmax;q++){const lv=q*sc;if(Math.abs(lv)<=range){
+    const px=xPos(lv);pctx.beginPath();pctx.moveTo(px,lineY-14);pctx.lineTo(px,lineY+14);pctx.stroke()}}
+  // Original value dot
+  const ovx=xPos(v),qvx=xPos(deq);
+  pctx.fillStyle='#4da6ff';pctx.beginPath();pctx.arc(ovx,lineY,8,0,Math.PI*2);pctx.fill();
+  pctx.fillStyle='#4da6ff';pctx.font='bold 10px sans-serif';pctx.textAlign='center';pctx.fillText(v.toFixed(2),ovx,lineY-16);
+  // Quantized value dot
+  pctx.fillStyle='#44cc66';pctx.beginPath();pctx.arc(qvx,lineY,7,0,Math.PI*2);pctx.fill();
+  pctx.fillStyle='#44cc66';pctx.fillText(deq.toFixed(3),qvx,lineY+28);
+  // Error arrow
+  if(Math.abs(ovx-qvx)>2){
+    pctx.strokeStyle='#ffaa33';pctx.lineWidth=2;pctx.setLineDash([4,3]);
+    pctx.beginPath();pctx.moveTo(ovx,lineY-4);pctx.lineTo(qvx,lineY-4);pctx.stroke();pctx.setLineDash([]);
+    pctx.fillStyle='#ffaa33';pctx.font='9px sans-serif';pctx.fillText('誤差 '+err.toFixed(4),(ovx+qvx)/2,lineY-22)}
+  // Labels
+  pctx.fillStyle='#556070';pctx.font='9px sans-serif';pctx.textAlign='left';pctx.fillText('-'+absMax,mL,lineY+28);
+  pctx.textAlign='right';pctx.fillText('+'+absMax,pW-mR,lineY+28);
+  pctx.textAlign='center';pctx.fillText('0',xPos(0),lineY+28);
+  pctx.fillStyle='#7888a0';pctx.font='9px sans-serif';pctx.textAlign='left';
+  pctx.fillText('量子化グリッド ('+b+'bit = '+(2*qmax+1)+'レベル)',mL,14);
+}
+document.getElementById('whyVal').addEventListener('input',doWhyPipe);
+document.getElementById('whyBits').addEventListener('change',doWhyPipe);
+
+// Section: Image Quantization
+const iqBitsArr=[8,4,3,2,1];
+const iqLabels=['32bit (原画)','8bit/ch','4bit/ch','3bit/ch','2bit/ch','1bit/ch'];
+const iqLevels=[256,256,16,8,4,2];
+let iqPattern='gradient';
+(function initIqGrid(){
+  const grid=document.getElementById('iqGrid');
+  const ids=['iq32','iq8','iq4','iq3','iq2','iq1'];
+  ids.forEach((id,i)=>{
+    const cell=document.createElement('div');cell.className='iq-cell';
+    cell.innerHTML=`<div class="iq-label"><span>${iqLabels[i]}</span><span class="iq-levels">${iqLevels[i]}段階/ch</span></div><canvas id="${id}" width="200" height="200"></canvas>`;
+    grid.appendChild(cell);
+  });
+})();
+function iqGenPixel(pattern,u,v){
+  // u,v in [0,1], returns [r,g,b] in [0,255]
+  if(pattern==='gradient'){
+    const h=u*360,s=1,l=1-v;
+    return hslToRgb(h,s,l);
+  }
+  if(pattern==='radial'){
+    const dx=u-.5,dy=v-.5,d=Math.sqrt(dx*dx+dy*dy)*2;
+    const angle=Math.atan2(dy,dx);
+    const h=((angle/Math.PI+1)/2*360)%360;
+    const l=Math.max(0,1-d);
+    return hslToRgb(h,1,l);
+  }
+  // wave
+  const x=u*8*Math.PI,y=v*8*Math.PI;
+  const v1=(Math.sin(x)*Math.cos(y)+1)/2;
+  const v2=(Math.sin(x*1.7+1)*Math.cos(y*0.7+2)+1)/2;
+  const v3=(Math.sin(x*0.5+y*0.5)+1)/2;
+  return [v1*255,v2*255,v3*255];
+}
+function hslToRgb(h,s,l){
+  const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2;
+  let r=0,g=0,b=0;
+  if(h<60){r=c;g=x}else if(h<120){r=x;g=c}else if(h<180){g=c;b=x}
+  else if(h<240){g=x;b=c}else if(h<300){r=x;b=c}else{r=c;b=x}
+  return [(r+m)*255,(g+m)*255,(b+m)*255];
+}
+function doImageQuant(){
+  const S=200;
+  // Generate base image
+  const base=new Float32Array(S*S*3);
+  for(let y=0;y<S;y++)for(let x=0;x<S;x++){
+    const idx=(y*S+x)*3;
+    const rgb=iqGenPixel(iqPattern,x/S,y/S);
+    base[idx]=rgb[0];base[idx+1]=rgb[1];base[idx+2]=rgb[2];
+  }
+  const configs=[
+    {id:'iq32',bits:32},{id:'iq8',bits:8},{id:'iq4',bits:4},
+    {id:'iq3',bits:3},{id:'iq2',bits:2},{id:'iq1',bits:1}
+  ];
+  configs.forEach(({id,bits})=>{
+    const cv=document.getElementById(id);if(!cv)return;
+    cv.width=S;cv.height=S;
+    const ctx=cv.getContext('2d');
+    const img=ctx.createImageData(S,S);
+    const levels=bits>=32?256:Math.pow(2,bits);
+    const step=256/levels;
+    for(let i=0;i<S*S;i++){
+      const si=i*3,di=i*4;
+      for(let c=0;c<3;c++){
+        let v=base[si+c];
+        if(bits<32){
+          v=Math.floor(v/step)*step+step/2;
+          v=Math.max(0,Math.min(255,v));
+        }
+        img.data[di+c]=v;
+      }
+      img.data[di+3]=255;
+    }
+    ctx.putImageData(img,0,0);
+  });
+}
+document.getElementById('iqPatterns').addEventListener('click',e=>{
+  const btn=e.target.closest('button[data-p]');if(!btn)return;
+  document.querySelectorAll('#iqPatterns button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  iqPattern=btn.dataset.p;
+  doImageQuant();
+});
+
+// Section: Mosaic Recognition Demo
+const MO_SIZE=160;
+const MO_BLOCKS=[1,2,4,8,16,32];
+let moSubject='cat';
+function moDrawSubject(ctx,S){
+  ctx.clearRect(0,0,S,S);
+  // Background
+  ctx.fillStyle='#ddeeff';ctx.fillRect(0,0,S,S);
+  if(moSubject==='cat'){
+    // Body / head
+    ctx.fillStyle='#ff9933';
+    ctx.beginPath();ctx.ellipse(S*.5,S*.55,S*.28,S*.3,0,0,Math.PI*2);ctx.fill();
+    // Ears
+    ctx.beginPath();ctx.moveTo(S*.28,S*.3);ctx.lineTo(S*.2,S*.08);ctx.lineTo(S*.42,S*.22);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(S*.72,S*.3);ctx.lineTo(S*.8,S*.08);ctx.lineTo(S*.58,S*.22);ctx.closePath();ctx.fill();
+    // Inner ears
+    ctx.fillStyle='#ffcc88';
+    ctx.beginPath();ctx.moveTo(S*.3,S*.28);ctx.lineTo(S*.24,S*.13);ctx.lineTo(S*.4,S*.24);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(S*.7,S*.28);ctx.lineTo(S*.76,S*.13);ctx.lineTo(S*.6,S*.24);ctx.closePath();ctx.fill();
+    // Eyes
+    ctx.fillStyle='#225522';
+    ctx.beginPath();ctx.ellipse(S*.38,S*.48,S*.055,S*.07,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(S*.62,S*.48,S*.055,S*.07,0,0,Math.PI*2);ctx.fill();
+    // Pupils
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.ellipse(S*.38,S*.48,S*.025,S*.05,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(S*.62,S*.48,S*.025,S*.05,0,0,Math.PI*2);ctx.fill();
+    // Nose
+    ctx.fillStyle='#dd5577';
+    ctx.beginPath();ctx.moveTo(S*.5,S*.56);ctx.lineTo(S*.47,S*.53);ctx.lineTo(S*.53,S*.53);ctx.closePath();ctx.fill();
+    // Mouth
+    ctx.strokeStyle='#884422';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(S*.5,S*.57);ctx.quadraticCurveTo(S*.43,S*.64,S*.36,S*.60);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(S*.5,S*.57);ctx.quadraticCurveTo(S*.57,S*.64,S*.64,S*.60);ctx.stroke();
+    // Whiskers
+    ctx.strokeStyle='#553311';ctx.lineWidth=1;
+    [[.15,.52,.34,.52],[.14,.57,.33,.56],[.16,.62,.35,.60],
+     [.85,.52,.66,.52],[.86,.57,.67,.56],[.84,.62,.65,.60]].forEach(([x1,y1,x2,y2])=>{
+      ctx.beginPath();ctx.moveTo(S*x1,S*y1);ctx.lineTo(S*x2,S*y2);ctx.stroke();});
+    // Tail
+    ctx.strokeStyle='#ff9933';ctx.lineWidth=5;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(S*.72,S*.82);ctx.quadraticCurveTo(S*.92,S*.7,S*.85,S*.5);ctx.stroke();
+  } else if(moSubject==='fish'){
+    // Water
+    ctx.fillStyle='#aaddff';ctx.fillRect(0,0,S,S);
+    // Body
+    ctx.fillStyle='#ff6644';
+    ctx.beginPath();ctx.ellipse(S*.48,S*.5,S*.3,S*.18,0,0,Math.PI*2);ctx.fill();
+    // Tail
+    ctx.beginPath();ctx.moveTo(S*.75,S*.5);ctx.lineTo(S*.92,S*.32);ctx.lineTo(S*.92,S*.68);ctx.closePath();ctx.fill();
+    // Fin top
+    ctx.fillStyle='#ff8866';
+    ctx.beginPath();ctx.moveTo(S*.4,S*.32);ctx.quadraticCurveTo(S*.5,S*.15,S*.58,S*.33);ctx.closePath();ctx.fill();
+    // Eye
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(S*.35,S*.46,S*.06,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.arc(S*.34,S*.46,S*.03,0,Math.PI*2);ctx.fill();
+    // Mouth
+    ctx.strokeStyle='#cc3322';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(S*.2,S*.52);ctx.quadraticCurveTo(S*.24,S*.56,S*.28,S*.52);ctx.stroke();
+    // Scales
+    ctx.strokeStyle='rgba(200,80,40,.3)';ctx.lineWidth=1;
+    for(let i=0;i<3;i++)for(let j=0;j<2;j++){
+      ctx.beginPath();ctx.arc(S*(.38+i*.1),S*(.44+j*.1),S*.04,0,Math.PI,false);ctx.stroke();}
+    // Bubbles
+    ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=1.5;
+    [[.18,.35,.02],[.12,.28,.015],[.15,.2,.01]].forEach(([x,y,r])=>{
+      ctx.beginPath();ctx.arc(S*x,S*y,S*r,0,Math.PI*2);ctx.stroke();});
+  } else if(moSubject==='house'){
+    // Ground
+    ctx.fillStyle='#88cc55';ctx.fillRect(0,S*.72,S,S*.28);
+    // Sky
+    ctx.fillStyle='#aaddff';ctx.fillRect(0,0,S,S*.72);
+    // Wall
+    ctx.fillStyle='#eebb77';ctx.fillRect(S*.2,S*.4,S*.6,S*.34);
+    // Roof
+    ctx.fillStyle='#cc4433';
+    ctx.beginPath();ctx.moveTo(S*.15,S*.42);ctx.lineTo(S*.5,S*.12);ctx.lineTo(S*.85,S*.42);ctx.closePath();ctx.fill();
+    // Door
+    ctx.fillStyle='#774422';ctx.fillRect(S*.44,S*.54,S*.12,S*.2);
+    // Doorknob
+    ctx.fillStyle='#ffcc00';ctx.beginPath();ctx.arc(S*.53,S*.64,S*.015,0,Math.PI*2);ctx.fill();
+    // Windows
+    ctx.fillStyle='#aaddff';ctx.strokeStyle='#886633';ctx.lineWidth=1.5;
+    [[.26,.48,.1,.1],[.64,.48,.1,.1]].forEach(([x,y,w,h])=>{
+      ctx.fillRect(S*x,S*y,S*w,S*h);ctx.strokeRect(S*x,S*y,S*w,S*h);
+      ctx.beginPath();ctx.moveTo(S*(x+w/2),S*y);ctx.lineTo(S*(x+w/2),S*(y+h));ctx.stroke();
+      ctx.beginPath();ctx.moveTo(S*x,S*(y+h/2));ctx.lineTo(S*(x+w),S*(y+h/2));ctx.stroke();});
+    // Sun
+    ctx.fillStyle='#ffdd44';ctx.beginPath();ctx.arc(S*.85,S*.12,S*.06,0,Math.PI*2);ctx.fill();
+  } else { // tree
+    // Sky
+    ctx.fillStyle='#aaddff';ctx.fillRect(0,0,S,S*.7);
+    // Ground
+    ctx.fillStyle='#88cc55';ctx.fillRect(0,S*.7,S,S*.3);
+    // Trunk
+    ctx.fillStyle='#885533';ctx.fillRect(S*.43,S*.5,S*.14,S*.28);
+    // Canopy layers
+    ctx.fillStyle='#33aa44';
+    ctx.beginPath();ctx.ellipse(S*.5,S*.38,S*.28,S*.2,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#2d9940';
+    ctx.beginPath();ctx.ellipse(S*.42,S*.44,S*.18,S*.14,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#38b34a';
+    ctx.beginPath();ctx.ellipse(S*.58,S*.42,S*.18,S*.14,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#44cc55';
+    ctx.beginPath();ctx.ellipse(S*.5,S*.3,S*.2,S*.15,0,0,Math.PI*2);ctx.fill();
+    // Apples
+    ctx.fillStyle='#ee3333';
+    [[.4,.34],[.55,.4],[.62,.36],[.44,.44]].forEach(([x,y])=>{
+      ctx.beginPath();ctx.arc(S*x,S*y,S*.025,0,Math.PI*2);ctx.fill();});
+    // Sun
+    ctx.fillStyle='#ffdd44';ctx.beginPath();ctx.arc(S*.85,S*.12,S*.06,0,Math.PI*2);ctx.fill();
+  }
+}
+function doMosaic(){
+  const grid=document.getElementById('moGrid');
+  grid.innerHTML='';
+  // Draw original at full res to an offscreen canvas
+  const offCv=document.createElement('canvas');offCv.width=MO_SIZE;offCv.height=MO_SIZE;
+  const offCtx=offCv.getContext('2d');
+  moDrawSubject(offCtx,MO_SIZE);
+  const origData=offCtx.getImageData(0,0,MO_SIZE,MO_SIZE);
+
+  MO_BLOCKS.forEach(bs=>{
+    const cell=document.createElement('div');cell.className='mo-cell';
+    const cv=document.createElement('canvas');cv.width=MO_SIZE;cv.height=MO_SIZE;
+    const ctx=cv.getContext('2d');
+    if(bs===1){
+      ctx.putImageData(origData,0,0);
+    } else {
+      // Mosaic: average each block
+      const img=ctx.createImageData(MO_SIZE,MO_SIZE);
+      for(let by=0;by<MO_SIZE;by+=bs)for(let bx=0;bx<MO_SIZE;bx+=bs){
+        let rS=0,gS=0,bS=0,cnt=0;
+        for(let dy=0;dy<bs&&by+dy<MO_SIZE;dy++)for(let dx=0;dx<bs&&bx+dx<MO_SIZE;dx++){
+          const idx=((by+dy)*MO_SIZE+(bx+dx))*4;
+          rS+=origData.data[idx];gS+=origData.data[idx+1];bS+=origData.data[idx+2];cnt++;
+        }
+        const rA=Math.round(rS/cnt),gA=Math.round(gS/cnt),bA=Math.round(bS/cnt);
+        for(let dy=0;dy<bs&&by+dy<MO_SIZE;dy++)for(let dx=0;dx<bs&&bx+dx<MO_SIZE;dx++){
+          const idx=((by+dy)*MO_SIZE+(bx+dx))*4;
+          img.data[idx]=rA;img.data[idx+1]=gA;img.data[idx+2]=bA;img.data[idx+3]=255;
+        }
+      }
+      ctx.putImageData(img,0,0);
+    }
+    const res=Math.ceil(MO_SIZE/bs);
+    const lost=bs>=16;
+    if(lost)cell.classList.add('mo-lost');
+    const label=bs===1?'原画 ('+MO_SIZE+'×'+MO_SIZE+')':bs+'×'+bs+'ブロック → 実質'+res+'×'+res;
+    const verdict=bs===1?'<span class="mo-verdict ok">✓ 完全</span>':
+      bs<=4?'<span class="mo-verdict ok">✓ 判別可能</span>':
+      bs<=8?'<span class="mo-verdict ok">△ ギリギリ</span>':
+      '<span class="mo-verdict ng">✗ 判別困難</span>';
+    cell.innerHTML='';
+    cell.appendChild(cv);
+    const info=document.createElement('div');info.className='mo-info';
+    info.innerHTML='<span class="mo-block">'+label+'</span>'+verdict;
+    cell.appendChild(info);
+    grid.appendChild(cell);
+  });
+}
+document.getElementById('moSubjects').addEventListener('click',e=>{
+  const btn=e.target.closest('button[data-s]');if(!btn)return;
+  document.querySelectorAll('#moSubjects button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  moSubject=btn.dataset.s;
+  doMosaic();
+});
+
+// Section: Text Quantization Demo
+const TQ_TEXTS={
+  tech:'量子化はニューラルネットワークの重みパラメータを低精度の数値表現に変換する技術です。FP32からINT4への量子化により、モデルサイズを約8分の1に圧縮できます。',
+  story:'桜の花びらが風に舞い、川面にそっと落ちた。少女は橋の上から静かにその光景を眺めていた。春の柔らかな日差しが、彼女の長い髪を金色に染めている。',
+  code:'関数getMaxValue()は配列の全要素を走査し、最大値を返却する。引数がnullの場合はエラーを投げる。計算量はO(n)で空間量はO(1)である。'
+};
+const TQ_KANA_MAP={'量':'りょう','子':'し','化':'か','は':'は','ニ':'に','ュ':'ゅ','ー':'ー','ラ':'ら','ル':'る','ネ':'ね','ッ':'っ','ト':'と','ワ':'わ','ク':'く','の':'の','重':'おも','み':'み','パ':'ぱ','ラ':'ら','メ':'め','タ':'た','を':'を','低':'てい','精':'せい','度':'ど','数':'すう','値':'ち','表':'ひょう','現':'げん','に':'に','変':'へん','換':'かん','す':'す','る':'る','技':'ぎ','術':'じゅつ','で':'で','す':'す'};
+function toHiragana(text){
+  let result='';
+  for(const ch of text){
+    const code=ch.charCodeAt(0);
+    if(code>=0x30A0&&code<=0x30FF){result+=String.fromCharCode(code-0x60);continue;}
+    if(code>=0x4E00&&code<=0x9FFF){result+='○';continue;}
+    result+=ch;
+  }
+  return result;
+}
+function extractVowels(text){
+  const vowels='あいうえおアイウエオaeiouAEIOU';
+  let result='';
+  for(const ch of text){
+    if(vowels.includes(ch))result+=ch;
+    else if(ch===' '||ch==='　'||ch==='。'||ch==='、'||ch==='\n')result+=ch;
+    else result+='·';
+  }
+  return result;
+}
+let tqSample='tech';
+function doTextQuant(){
+  const grid=document.getElementById('tqGrid');
+  grid.innerHTML='';
+  const orig=TQ_TEXTS[tqSample];
+  const levels=[
+    {label:'原文（FP32相当）',bits:'32bit',text:orig,ratio:'100%',lost:false,verdict:'完全な情報'},
+    {label:'ひらがな化（FP16相当）',bits:'16bit',
+     text:toHiragana(orig),ratio:'100%',lost:false,verdict:'意味はほぼ保持'},
+    {label:'2文字に1文字（INT8相当）',bits:'8bit',
+     text:[...orig].filter((_,i)=>i%2===0).join(''),ratio:'50%',lost:false,verdict:'推測可能'},
+    {label:'4文字に1文字（INT4相当）',bits:'4bit',
+     text:[...orig].filter((_,i)=>i%4===0).join(''),ratio:'25%',lost:true,verdict:'断片的'},
+    {label:'母音・句読点のみ（INT2相当）',bits:'2bit',
+     text:extractVowels(orig),ratio:'-',lost:true,verdict:'ほぼ判読不能'},
+    {label:'文字数のみ（1bit相当）',bits:'1bit',
+     text:'['+[...orig].length+'文字]'+'　'+'█'.repeat(Math.min(40,Math.round([...orig].length/2))),
+     ratio:'-',lost:true,verdict:'情報消失'}
+  ];
+  levels.forEach(lv=>{
+    const card=document.createElement('div');
+    card.className='tq-card'+(lv.lost?' tq-lost':'');
+    card.innerHTML=
+      '<div class="tq-head"><span class="tq-title">'+lv.label+'</span><span class="tq-meta">'+lv.bits+(lv.ratio!=='-'?' / 情報量≈'+lv.ratio:'')+'</span></div>'+
+      '<div class="tq-text">'+escHtml(lv.text)+'</div>'+
+      '<div class="tq-verdict '+(lv.lost?'ng':'ok')+'">'+(lv.lost?'✗ ':'✓ ')+lv.verdict+'</div>';
+    grid.appendChild(card);
+  });
+}
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+document.getElementById('tqSamples').addEventListener('click',e=>{
+  const btn=e.target.closest('button[data-t]');if(!btn)return;
+  document.querySelectorAll('#tqSamples button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  tqSample=btn.dataset.t;
+  doTextQuant();
+});
+
+// Section B: Degradation demo
+function doDegradation(){
+  const bits=+document.getElementById('degBits').value,comp=+document.getElementById('degComp').value;
+  document.getElementById('degBitsV').textContent=bits;
+  document.getElementById('degCompV').textContent=comp;
+  const cv=document.getElementById('degCanvas'),W=cv.parentElement.clientWidth;cv.width=W;
+  const H=cv.height,ctx=cv.getContext('2d'),m={l:50,r:20,t:20,b:35};
+  const N=200,pW=W-m.l-m.r,pH=H-m.t-m.b;
+  // Generate signal
+  const sig=[];for(let i=0;i<N;i++){const t=i/N*4*Math.PI;let y=0;
+    for(let h=1;h<=comp;h++)y+=Math.sin(h*t)/(h*0.7);sig.push(y)}
+  const maxAbs=Math.max(...sig.map(Math.abs))||1;
+  // Quantize
+  const qmax=(1<<(bits-1))-1,sc=maxAbs/qmax;
+  const qSig=sig.map(v=>{const q=Math.max(-qmax,Math.min(qmax,Math.round(v/sc)));return q*sc});
+  // Stats
+  let mse=0;sig.forEach((v,i)=>mse+=(v-qSig[i])**2);mse/=N;
+  const sigPow=sig.reduce((s,v)=>s+v*v,0)/N;
+  const snr=sigPow>0?10*Math.log10(sigPow/mse):Infinity;
+  const xP=i=>m.l+(i/(N-1))*pW,yP=v=>m.t+pH/2-(v/maxAbs)*(pH/2)*0.9;
+  ctx.clearRect(0,0,W,H);
+  // Grid
+  ctx.strokeStyle='#1a2030';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(m.l,yP(0));ctx.lineTo(W-m.r,yP(0));ctx.stroke();
+  // Original
+  ctx.strokeStyle='#4da6ff';ctx.lineWidth=2;ctx.beginPath();
+  sig.forEach((v,i)=>{i===0?ctx.moveTo(xP(i),yP(v)):ctx.lineTo(xP(i),yP(v))});ctx.stroke();
+  // Quantized (step function)
+  ctx.strokeStyle='#ff5555';ctx.lineWidth=2;ctx.beginPath();
+  qSig.forEach((v,i)=>{if(i===0){ctx.moveTo(xP(i),yP(v))}else{ctx.lineTo(xP(i),yP(qSig[i-1]));ctx.lineTo(xP(i),yP(v))}});ctx.stroke();
+  // Legend
+  ctx.fillStyle='#4da6ff';ctx.font='11px sans-serif';ctx.fillText('● 元信号',m.l+5,H-8);
+  ctx.fillStyle='#ff5555';ctx.fillText('● 量子化信号',m.l+85,H-8);
+  // Stats
+  document.getElementById('degStats').innerHTML=
+    `<div class="stat">量子化レベル数: <strong>${Math.pow(2,bits)}</strong></div>`+
+    `<div class="stat">MSE: <strong>${mse.toFixed(6)}</strong></div>`+
+    `<div class="stat">SNR: <strong>${isFinite(snr)?snr.toFixed(1)+'dB':'∞'}</strong></div>`;
+}
+document.getElementById('degBits').addEventListener('input',doDegradation);
+document.getElementById('degComp').addEventListener('input',doDegradation);
+
+// Section C-left: Weight distribution concentration
+let whyDistCh=null;
+function doWhyDist(){
+  const w=genW(5000,0,0.02),cv=document.getElementById('whyDistCv');
+  const h=hist(w,60);
+  const within04=w.filter(v=>Math.abs(v)<=0.04).length;
+  const pct=(within04/w.length*100).toFixed(1);
+  if(typeof Chart!=='undefined'){
+    if(whyDistCh)whyDistCh.destroy();
+    whyDistCh=new Chart(cv,{type:'bar',data:{labels:h.l,datasets:[
+      {label:'Transformer重み N(0, 0.02)',data:h.b,backgroundColor:'rgba(77,166,255,.3)',borderColor:'rgba(77,166,255,.7)',borderWidth:1}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:250},
+      plugins:{legend:{labels:{color:'#b8c0d0',font:{size:11}}}},
+      scales:{x:{ticks:{color:'#7888a0',maxTicksLimit:8,font:{size:9}},grid:{color:'#1a2030'},
+        title:{display:true,text:'重みの値',color:'#7888a0',font:{size:11}}},
+        y:{ticks:{color:'#7888a0',font:{size:9}},grid:{color:'#1a2030'},
+        title:{display:true,text:'頻度',color:'#7888a0',font:{size:11}}}}}});
+  }
+  // Add annotation text above chart
+  const parent=cv.parentElement;
+  let ann=parent.querySelector('.dist-ann');
+  if(!ann){ann=document.createElement('div');ann.className='dist-ann';
+    ann.style.cssText='position:absolute;top:8px;right:12px;background:rgba(10,24,40,.9);border:1px solid var(--accent);border-radius:6px;padding:.4rem .7rem;font-size:.78rem;color:var(--accent);font-weight:700;z-index:5';
+    parent.appendChild(ann)}
+  ann.textContent=`${pct}%の重みが±0.04に集中`;
+}
+
+// Section C-right: Robustness — Canvas NN diagram + result bars
+function doWhyRobust(){
+  // 2→4→1 NN with weights large enough for non-trivial ReLU output
+  const NH=4;
+  const W1=[];for(let j=0;j<NH;j++){W1[j]=[];for(let i=0;i<2;i++)W1[j].push((Math.random()-0.5)*2)}
+  const W2=[];for(let j=0;j<NH;j++)W2.push((Math.random()*0.8+0.1)*(Math.random()<0.5?-1:1));
+  // Ensure at least 2 hidden nodes have positive pre-activation
+  const input=[0.7,0.5];
+  function fwd(w1,w2,inp){
+    const h=[];for(let j=0;j<NH;j++){let s=0;for(let i=0;i<2;i++)s+=w1[j][i]*inp[i];h.push(Math.max(0,s))}
+    let o=0;for(let j=0;j<NH;j++)o+=w2[j]*h[j];return{h,o}}
+  function qW(w1,w2,bits){
+    const all=[...w1.flat(),...w2],am=Math.max(...all.map(Math.abs))||1e-10;
+    return{w1:w1.map(r=>r.map(v=>symQ(v,am,bits).d)),w2:w2.map(v=>symQ(v,am,bits).d)}}
+
+  const fp32=fwd(W1,W2,input);
+  const precs=[{l:'FP32',b:32,c:'#4da6ff'},{l:'FP16',b:16,c:'#44cc66'},{l:'INT8',b:8,c:'#ffaa33'},{l:'INT4',b:4,c:'#b388ff'}];
+  precs.forEach(p=>{if(p.b===32){p.r=fp32;return}const q=qW(W1,W2,p.b);p.r=fwd(q.w1,q.w2,input)});
+
+  // Draw NN diagram
+  const cv=document.getElementById('robustNNCv'),W=cv.parentElement.clientWidth;cv.width=W;
+  const H=cv.height,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const layers=[{n:2,x:W*0.12,lbl:'入力'},{n:NH,x:W*0.5,lbl:'隠れ層(ReLU)'},{n:1,x:W*0.88,lbl:'出力'}];
+  const nodeR=14;
+  const nodes=layers.map(l=>{const pos=[];const gap=Math.min(40,(H-40)/(l.n+1));
+    const sy=H/2-(l.n-1)*gap/2;for(let i=0;i<l.n;i++)pos.push({x:l.x,y:sy+i*gap});return pos});
+  // Edges
+  ctx.lineWidth=1;
+  for(let j=0;j<NH;j++){for(let i=0;i<2;i++){
+    const w=W1[j][i];ctx.strokeStyle=w>=0?'rgba(68,204,102,.3)':'rgba(255,85,85,.3)';
+    ctx.beginPath();ctx.moveTo(nodes[0][i].x+nodeR,nodes[0][i].y);ctx.lineTo(nodes[1][j].x-nodeR,nodes[1][j].y);ctx.stroke()}}
+  for(let j=0;j<NH;j++){
+    const w=W2[j];ctx.strokeStyle=w>=0?'rgba(68,204,102,.3)':'rgba(255,85,85,.3)';
+    ctx.beginPath();ctx.moveTo(nodes[1][j].x+nodeR,nodes[1][j].y);ctx.lineTo(nodes[2][0].x-nodeR,nodes[2][0].y);ctx.stroke()}
+  // Nodes
+  const vals=[[input[0],input[1]],fp32.h,[fp32.o]];
+  const ncols=['#4da6ff','#44cc66','#ffaa33'];
+  nodes.forEach((layer,li)=>{layer.forEach((nd,ni)=>{
+    ctx.fillStyle=ncols[li];ctx.beginPath();ctx.arc(nd.x,nd.y,nodeR,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(vals[li][ni].toFixed(2),nd.x,nd.y)})});
+  // Labels
+  ctx.fillStyle='#7888a0';ctx.font='10px sans-serif';ctx.textBaseline='top';
+  layers.forEach(l=>{ctx.textAlign='center';ctx.fillText(l.lbl,l.x,H-14)});
+
+  // Result bars
+  const maxOut=Math.max(...precs.map(p=>Math.abs(p.r.o)))||1;
+  const maxDiff=Math.max(...precs.map(p=>Math.abs(p.r.o-fp32.o)),0.0001);
+  let html='<div style="display:grid;grid-template-columns:70px 1fr 100px 80px;gap:4px 8px;font-size:.82rem;align-items:center">';
+  html+='<div style="color:#7888a0;font-weight:700">精度</div><div style="color:#7888a0;font-weight:700">出力値</div><div style="color:#7888a0;font-weight:700">FP32との差</div><div style="color:#7888a0;font-weight:700">判定</div>';
+  precs.forEach(p=>{
+    const diff=Math.abs(p.r.o-fp32.o);
+    const ratio=diff/maxDiff;
+    const barW=Math.max(Math.abs(p.r.o)/maxOut*100,2);
+    const barCol=p.b===32?p.c:ratio<0.1?'#44cc66':ratio<0.5?'#ffaa33':'#ff5555';
+    const verdict=p.b===32?'基準':diff<0.001?'同等':diff<0.01?'微差':'乖離';
+    const verdictCol=p.b===32?'#4da6ff':diff<0.001?'#44cc66':diff<0.01?'#ffaa33':'#ff5555';
+    html+=`<div style="font-weight:700;color:${p.c}">${p.l}</div>`;
+    html+=`<div style="display:flex;align-items:center;gap:6px"><div style="height:16px;width:${barW}%;background:${barCol};border-radius:3px;min-width:4px"></div><span style="font-family:monospace;font-size:.8rem">${p.r.o.toFixed(6)}</span></div>`;
+    html+=`<div style="font-family:monospace;font-size:.8rem">${diff.toFixed(6)}</div>`;
+    html+=`<div style="color:${verdictCol};font-weight:700">${verdict}</div>`;
+  });
+  html+='</div>';
+  document.getElementById('robustResults').innerHTML=html;
+}
+
+// === Tab4: Deep Analysis ===
+
+// Section A: Outlier impact
+let outWeights=null;
+function initOutWeights(){outWeights=genW(63,0,0.5)}
+function doOutlier(){
+  const mag=+document.getElementById('outMag').value,b=+document.getElementById('outBits').value;
+  document.getElementById('outMagV').textContent=mag;
+  if(!outWeights)initOutWeights();
+  const w=[...outWeights,mag]; // 63 normal + 1 outlier
+  const am=Math.max(...w.map(Math.abs))||1e-10;
+  const qmax=(1<<(b-1))-1,sc=am/qmax;
+  const cv=document.getElementById('outCanvas'),W=cv.parentElement.clientWidth;cv.width=W;
+  const H=cv.height,ctx=cv.getContext('2d'),mL=60,mR=30,mT=30,mB=50;
+  const pW=W-mL-mR;
+  const range=Math.max(am*1.1,2);
+  const xP=v=>mL+(v+range)/(2*range)*pW;
+  ctx.clearRect(0,0,W,H);
+  const Y=H*0.45;
+  // Axis
+  ctx.strokeStyle='#2a3040';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(mL,Y);ctx.lineTo(W-mR,Y);ctx.stroke();
+  // Grid lines
+  ctx.strokeStyle='rgba(179,136,255,.15)';ctx.lineWidth=1;
+  for(let q=-qmax;q<=qmax;q++){const lv=q*sc;if(Math.abs(lv)<=range){const px=xP(lv);
+    ctx.beginPath();ctx.moveTo(px,Y-25);ctx.lineTo(px,Y+25);ctx.stroke()}}
+  // Label grid
+  ctx.fillStyle='#556070';ctx.font='9px sans-serif';ctx.textAlign='center';
+  ctx.fillText(`グリッド数: ${2*qmax+1}`,W/2,Y+42);
+  ctx.fillText(`scale: ${sc.toFixed(4)}`,W/2,mT-5);
+  // Plot dots
+  let totalErr=0,maxErr=0,normalErr=0;
+  w.forEach((v,i)=>{const qr=symQ(v,am,b),err=qr.e;totalErr+=err;if(err>maxErr)maxErr=err;
+    if(i<63)normalErr+=err;
+    const px=xP(v),errNorm=maxErr>0?err/Math.max(maxErr,0.001):0;
+    const r=Math.round(55+200*errNorm),g=Math.round(200-180*errNorm),bv=Math.round(55);
+    ctx.fillStyle=`rgb(${r},${g},${bv})`;
+    if(i===63&&mag>0){ctx.beginPath();ctx.arc(px,Y,8,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#ff5555';ctx.font='10px sans-serif';ctx.fillText('外れ値',px,Y-14)}
+    else{ctx.beginPath();ctx.arc(px,Y,4,0,Math.PI*2);ctx.fill()}
+  });
+  // Stats
+  const avgNormal=normalErr/63,avgAll=totalErr/64;
+  document.getElementById('outStats').innerHTML=
+    `<div class="stat">正常値の平均誤差: <strong>${avgNormal.toFixed(5)}</strong></div>`+
+    `<div class="stat">全体の平均誤差: <strong>${avgAll.toFixed(5)}</strong></div>`+
+    `<div class="stat">scale: <strong>${sc.toFixed(5)}</strong></div>`+
+    `<div class="stat" style="color:${mag>5?'var(--red)':'var(--green)'}">${mag>5?'⚠ 外れ値がグリッドを引き伸ばし中':'✓ 正常範囲'}</div>`;
+}
+document.getElementById('outMag').addEventListener('input',doOutlier);
+document.getElementById('outBits').addEventListener('change',doOutlier);
+
+// Section B: Perplexity curve
+let pplCh=null;
+function doPPL(){
+  const bits=[2,3,4,5,6,8,10,12,16,24,32];
+  // Simulated perplexity multiplier relative to FP16 baseline
+  const data7B= [2.8,1.45,1.05,1.02,1.01,1.005,1.002,1.001,1.0,1.0,1.0];
+  const data13B=[2.2,1.30,1.03,1.015,1.008,1.003,1.001,1.0005,1.0,1.0,1.0];
+  const data70B=[1.8,1.18,1.02,1.01,1.005,1.002,1.001,1.0003,1.0,1.0,1.0];
+  const cv=document.getElementById('pplCv');
+  if(typeof Chart!=='undefined'){
+    if(pplCh)pplCh.destroy();
+    pplCh=new Chart(cv,{type:'line',data:{labels:bits.map(b=>b+'bit'),datasets:[
+      {label:'7B',data:data7B,borderColor:'#ff5555',backgroundColor:'rgba(255,85,85,.1)',tension:.3,pointRadius:4,pointHoverRadius:7,fill:false},
+      {label:'13B',data:data13B,borderColor:'#ffaa33',backgroundColor:'rgba(255,170,51,.1)',tension:.3,pointRadius:4,pointHoverRadius:7,fill:false},
+      {label:'70B',data:data70B,borderColor:'#44cc66',backgroundColor:'rgba(68,204,102,.1)',tension:.3,pointRadius:4,pointHoverRadius:7,fill:false}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:300},
+      plugins:{legend:{labels:{color:'#b8c0d0',font:{size:12}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: PPL ×${ctx.raw.toFixed(3)}`}}},
+      scales:{x:{ticks:{color:'#7888a0',font:{size:10}},grid:{color:'#1a2030'},
+        title:{display:true,text:'ビット数',color:'#7888a0',font:{size:11}}},
+        y:{ticks:{color:'#7888a0',font:{size:10},callback:v=>'×'+v.toFixed(2)},grid:{color:'#1a2030'},
+        title:{display:true,text:'Perplexity倍率 (FP16基準)',color:'#7888a0',font:{size:11}},
+        min:0.95}}}});
+    // Draw sweet spot annotation
+    const meta=pplCh.getDatasetMeta(0);
+    if(meta.data.length>2){
+      const plugin={id:'sweetspot',afterDraw(chart){
+        const ctx2=chart.ctx,xAxis=chart.scales.x,yAxis=chart.scales.y;
+        const x1=xAxis.getPixelForValue(2),x2=xAxis.getPixelForValue(4); // 4bit-8bit
+        const y1=yAxis.top,y2=yAxis.bottom;
+        ctx2.save();ctx2.fillStyle='rgba(68,204,102,.06)';ctx2.fillRect(x1,y1,x2-x1,y2-y1);
+        ctx2.fillStyle='rgba(68,204,102,.5)';ctx2.font='bold 11px sans-serif';ctx2.textAlign='center';
+        ctx2.fillText('スイートスポット',(x1+x2)/2,y1+16);ctx2.restore()}};
+      pplCh.config.plugins=[plugin];pplCh.update()
+    }
+  }
+}
+
+// Section C: NN Walkthrough
+function doNNWalk(){
+  // Generate random weights
+  const W1=[[],[],[]],W2=[];
+  for(let j=0;j<3;j++){W1[j]=[];for(let i=0;i<2;i++)W1[j].push((Math.random()-0.5)*2);W2.push((Math.random()-0.5)*2)}
+  const input=[0.6,-0.4];
+  function fwd(w1,w2,inp){
+    const h=[];for(let j=0;j<3;j++){let s=0;for(let i=0;i<2;i++)s+=w1[j][i]*inp[i];h.push(Math.max(0,s))}
+    let o=0;for(let j=0;j<3;j++)o+=w2[j]*h[j];return{hidden:h,out:o}}
+  function qWeights(w1,w2,bits){
+    const all=[...w1.flat(),...w2],am=Math.max(...all.map(Math.abs))||1e-10;
+    return{w1:w1.map(row=>row.map(v=>symQ(v,am,bits).d)),w2:w2.map(v=>symQ(v,am,bits).d)}}
+
+  const fp32=fwd(W1,W2,input);
+  const precisions=[{label:'FP32',bits:32,w1:W1,w2:W2},{label:'FP16',bits:16},{label:'INT8',bits:8},{label:'INT4',bits:4}];
+  precisions.forEach(p=>{if(p.bits===32){p.result=fp32;return}
+    const q=qWeights(W1,W2,p.bits);p.w1=q.w1;p.w2=q.w2;p.result=fwd(q.w1,q.w2,input)});
+
+  // Draw network diagram
+  const cv=document.getElementById('nnCanvas'),W=cv.parentElement.clientWidth;cv.width=W;
+  const H=cv.height,ctx=cv.getContext('2d');
+  const layers=[{n:2,x:W*0.15,label:'入力'},{n:3,x:W*0.5,label:'隠れ層'},{n:1,x:W*0.85,label:'出力'}];
+  const nodeR=18;
+  ctx.clearRect(0,0,W,H);
+  // Calc node positions
+  const nodes=layers.map(l=>{const pos=[];const gap=Math.min(70,H/(l.n+1));
+    const startY=H/2-(l.n-1)*gap/2;
+    for(let i=0;i<l.n;i++)pos.push({x:l.x,y:startY+i*gap});return pos});
+  // Draw edges with FP32 weights
+  ctx.lineWidth=1.5;
+  for(let j=0;j<3;j++){for(let i=0;i<2;i++){
+    const w=W1[j][i];ctx.strokeStyle=w>=0?'rgba(68,204,102,.4)':'rgba(255,85,85,.4)';
+    ctx.beginPath();ctx.moveTo(nodes[0][i].x+nodeR,nodes[0][i].y);
+    ctx.lineTo(nodes[1][j].x-nodeR,nodes[1][j].y);ctx.stroke();
+    const mx=(nodes[0][i].x+nodes[1][j].x)/2,my=(nodes[0][i].y+nodes[1][j].y)/2;
+    ctx.fillStyle='#7888a0';ctx.font='9px monospace';ctx.textAlign='center';ctx.fillText(w.toFixed(2),mx,my-4)}}
+  for(let j=0;j<3;j++){
+    const w=W2[j];ctx.strokeStyle=w>=0?'rgba(68,204,102,.4)':'rgba(255,85,85,.4)';
+    ctx.beginPath();ctx.moveTo(nodes[1][j].x+nodeR,nodes[1][j].y);
+    ctx.lineTo(nodes[2][0].x-nodeR,nodes[2][0].y);ctx.stroke();
+    const mx=(nodes[1][j].x+nodes[2][0].x)/2,my=(nodes[1][j].y+nodes[2][0].y)/2;
+    ctx.fillStyle='#7888a0';ctx.font='9px monospace';ctx.textAlign='center';ctx.fillText(w.toFixed(2),mx,my-4)}
+  // Draw nodes
+  const nodeVals=[[input[0],input[1]],[fp32.hidden[0],fp32.hidden[1],fp32.hidden[2]],[fp32.out]];
+  nodes.forEach((layer,li)=>{layer.forEach((nd,ni)=>{
+    ctx.fillStyle=li===0?'#4da6ff':li===1?'#44cc66':'#ffaa33';
+    ctx.beginPath();ctx.arc(nd.x,nd.y,nodeR,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(nodeVals[li][ni].toFixed(2),nd.x,nd.y)})});
+  // Layer labels
+  ctx.fillStyle='#7888a0';ctx.font='11px sans-serif';ctx.textBaseline='top';
+  layers.forEach((l,i)=>{ctx.textAlign='center';ctx.fillText(l.label,l.x,H-20)});
+
+  // Output lanes
+  const maxDiff=Math.max(...precisions.map(p=>Math.abs(p.result.out-fp32.out)),0.001);
+  document.getElementById('nnLanes').innerHTML=precisions.map(p=>{
+    const diff=Math.abs(p.result.out-fp32.out);
+    const ratio=diff/maxDiff;
+    const color=p.bits===32?'var(--accent)':ratio<0.1?'var(--green)':ratio<0.5?'var(--orange)':'var(--red)';
+    return`<div class="nn-lane" style="border-top:3px solid ${color}">
+      <div class="lane-label">${p.label}</div>
+      <div class="lane-val" style="color:${color}">${p.result.out.toFixed(6)}</div>
+      <div style="font-size:.75rem;color:var(--text-muted);margin-top:.3rem">差: ${diff.toFixed(6)}</div></div>`}).join('');
+}
+
+// === Init ===
+function init(){
+  doBits();doHist();doErrScatter();doSnapViz();doVecQuant();doTradeoff();doSym();doAsym();doBlock();doCT();doMC();doURI();doUEL();
+  handleHash()}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
